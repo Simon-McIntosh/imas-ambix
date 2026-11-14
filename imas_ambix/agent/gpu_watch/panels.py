@@ -469,12 +469,15 @@ def ordered_jobs(jobs: list[Job]) -> list[Job]:
     )
 
 
-def queue_panel(jobs: list[Job], rows: int | None = None) -> list[object]:
+def queue_panel(
+    jobs: list[Job], rows: int | None = None, gpus: dict[str, int] | None = None
+) -> list[object]:
     """The server's queue, any user: running jobs, then pending ones.
 
     This is where another group's load shows, since its cards cannot be read.
     ``rows`` bounds the table to the lines the screen has left; jobs that do
-    not fit are counted on a last line, never cut silently.
+    not fit are counted on a last line, never cut silently. ``gpus`` is the
+    cards each job holds or asked for, by job id.
     """
     table = grid(QUEUE_WIDTHS, left=5)
     head(table, "QUEUE", ["user", "acct", "name", "state", "elapsed", "gpu"])
@@ -498,7 +501,7 @@ def queue_panel(jobs: list[Job], rows: int | None = None) -> list[object]:
             job.name,
             job.state,
             job.elapsed,
-            f"{job.gpus}" if job.gpus else DASH,
+            f"{held}" if (held := (gpus or {}).get(job.id, job.gpus)) else DASH,
         )
         table.add_row(*[f"[{colour}]{escape(cell)}[/]" for cell in cells])
     rest = ordered[len(shown) :]
@@ -584,7 +587,13 @@ def servers_panel(readings: list[Reading]) -> list[object]:
     return [table]
 
 
-def lanes_panel(lanes: list[Lane]) -> list[object]:
+def no_document(reason: str = "") -> Text:
+    """The line that stands where the lanes would be, with why when known."""
+    detail = f"[dim] — {escape(reason)}[/]" if reason else ""
+    return Text.from_markup(f"[yellow]no lane document read[/]{detail}")
+
+
+def lanes_panel(lanes: list[Lane], reason: str = "") -> list[object]:
     """One row per lane and a total: load, rate, and the gate's room."""
     table = grid(LANES_WIDTHS)
     head(
@@ -635,7 +644,7 @@ def lanes_panel(lanes: list[Lane]) -> list[object]:
             "",
         )
     if not lanes:
-        return [table, Text.from_markup("[yellow]no lane document read[/]")]
+        return [table, no_document(reason)]
     return [table]
 
 
@@ -668,6 +677,7 @@ def overview_page(
     ledger: list | None,
     published_at: object = None,
     footer: str = "",
+    reason: str = "",
 ) -> Group:
     """Every server, every lane, and what the lanes have cost."""
     count = len(readings)
@@ -681,7 +691,7 @@ def overview_page(
         [
             [title],
             servers_panel(readings),
-            lanes_panel(lanes),
+            lanes_panel(lanes, reason),
             ledger_panel(ledger, published_at),
         ]
     )
@@ -728,4 +738,5 @@ def server_page(
         if rows < wanted and ledger is not None:
             parts, rows = fit(sections[:-1])
         rows = max(1, rows)
-    return Group(*parts, rule(), *queue_panel(reading.jobs, rows), *tail)
+    gpus = {job.id: reading.gpus(job) for job in reading.jobs}
+    return Group(*parts, rule(), *queue_panel(reading.jobs, rows, gpus), *tail)

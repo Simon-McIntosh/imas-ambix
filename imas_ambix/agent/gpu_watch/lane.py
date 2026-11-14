@@ -61,7 +61,7 @@ def lanes(document: dict[str, Any] | None) -> list[Lane]:
         return [
             _lane(
                 llm_watch.engine_document(document, entry),
-                llm_watch._server_name(entry),
+                llm_watch.server_name(entry),
             )
             for entry in llm_watch.document_engines(document)
         ]

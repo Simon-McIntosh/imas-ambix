@@ -14,10 +14,13 @@ allocated or free, never as a utilisation.
 
 Three cadences keep the cost flat however many servers there are. The
 scheduler is asked every ``POLL_SECONDS`` on one thread: one ``sinfo`` and two
-``squeue`` calls for the whole fleet, and one ``scontrol`` per job the first
-time it is seen. Each sampler streams one line per card per second. The caller
-takes a :meth:`Fleet.tick` once a second, which only copies what is already
-known and extends the rolling means.
+``squeue`` calls for the whole fleet, and one ``scontrol`` per job when it is
+first seen and again when it starts. The queue line alone does not say how
+many cards a job holds: its resource field is empty for a job that asked for
+cards per job and not per node, so the count comes from the job's detail. Each
+sampler streams one line per card per second. The caller takes a
+:meth:`Fleet.tick` once a second, which only copies what is already known and
+extends the rolling means.
 """
 
 from __future__ import annotations
@@ -49,15 +52,16 @@ PARTITIONS_ENV = "AMBIX_WATCH_PARTITIONS"
 
 _GRES = re.compile(r"gpu:(?:([^:(,]+):)?(\d+)")
 _GROUP = re.compile(r"grp([a-z])$", re.IGNORECASE)
+_ASKED = re.compile(r"ReqTRES=\S*gres/gpu=(\d+)")
 _JOB_FORMAT = "%i|%u|%a|%j|%P|%T|%M|%b|%v|%N"
 _NODE_FORMAT = "%N|%P|%G|%t|%E"
 
 
 def short_name(node: str) -> str:
     """A node as the pages print it: no domain and no site prefix."""
-    from imas_ambix.agent.registry import _host_name
+    from imas_ambix.agent.registry import host_name
 
-    return _host_name(node)
+    return host_name(node)
 
 
 @dataclass(frozen=True)
@@ -106,7 +110,7 @@ class Job:
 
     @property
     def gpus(self) -> int:
-        """Cards the job asked for; zero for a job that asked for none."""
+        """Cards the queue line names, which is none for a per-job request."""
         found = _GRES.search(self.gres)
         return int(found.group(2)) if found else 0
 
@@ -145,6 +149,8 @@ class Reading:
     #: Card indices each running job holds on this server, by job id.
     job_cards: dict[str, set[int]] = field(default_factory=dict)
     cards: list[Card] = field(default_factory=list)
+    #: Cards each job asked for, by job id, from the job's own detail.
+    asked: dict[str, int] = field(default_factory=dict)
     #: ``(cpu % now, cpu % mean, ram %)`` of the host, when a sampler reports.
     host: tuple[float, float, float] | None = None
     group: str | None = None
@@ -157,10 +163,16 @@ class Reading:
     def pending(self) -> list[Job]:
         return [job for job in self.jobs if job.pending]
 
+    def gpus(self, job: Job) -> int:
+        """Cards a job holds here, or asked for while it waits."""
+        return (
+            len(self.job_cards.get(job.id) or ()) or self.asked.get(job.id) or job.gpus
+        )
+
     @property
     def allocated_count(self) -> int:
-        """Cards running jobs hold, from the queue, which needs no cgroup."""
-        return sum(job.gpus for job in self.running)
+        """Cards running jobs hold, from the scheduler, which needs no cgroup."""
+        return sum(self.gpus(job) for job in self.running)
 
     @property
     def unreadable(self) -> list[int]:
@@ -220,6 +232,33 @@ def parse_card_indices(text: str) -> dict[str, set[int]]:
     return held
 
 
+def parse_asked_cards(text: str) -> int:
+    """Cards a job asked for, from ``scontrol show job``; zero for none."""
+    found = _ASKED.search(text)
+    return int(found.group(1)) if found else 0
+
+
+def sampled_jobs(
+    jobs: list[Job], held: dict[str, dict[str, set[int]]], nodes: object
+) -> dict[str, str]:
+    """This account's jobs to sample through, as ``{job id: node}``.
+
+    A sampler sees only the cards of the job it joins, so every job of this
+    account that holds cards gets one. A server where this account runs only
+    jobs without cards gets one sampler, for the host figures.
+    """
+    mine = [
+        job for job in jobs if job.running and job.user == USER and job.node in nodes
+    ]
+    chosen = {job.id: job.node for job in mine if held.get(job.id, {}).get(job.node)}
+    covered = set(chosen.values())
+    for job in mine:
+        if job.node not in covered:
+            chosen[job.id] = job.node
+            covered.add(job.node)
+    return chosen
+
+
 def _number(text: str) -> float | None:
     try:
         return float(text)
@@ -272,6 +311,9 @@ class Fleet:
         self._state: dict[str, tuple[str, str]] = {}
         self._jobs: list[Job] = []
         self._held: dict[str, dict[str, set[int]]] = {}
+        self._asked: dict[str, int] = {}
+        #: Whether each job was running when its detail was read.
+        self._detailed: dict[str, bool] = {}
         self._latest: dict[tuple[str, int], tuple] = {}
         self._host: dict[str, tuple[float, float, float]] = {}
         self._samplers: dict[str, subprocess.Popen] = {}
@@ -319,22 +361,29 @@ class Fleet:
             _run(["squeue", "-h", "-p", partitions, "-t", "PD", "-o", _JOB_FORMAT])
         )
         jobs += [job for job in waiting if job.id not in known]
-        # The cards a job holds cannot change while it runs, so each running
-        # job is asked about once.
+        # What a job asked for never changes and the cards it holds cannot
+        # change while it runs, so a job's detail is read when it is first
+        # seen and once more when it starts.
         held = {job.id: self._held[job.id] for job in jobs if job.id in self._held}
+        asked = {job.id: self._asked[job.id] for job in jobs if job.id in self._asked}
+        detailed = {
+            job.id: self._detailed[job.id] for job in jobs if job.id in self._detailed
+        }
         for job in jobs:
-            if job.running and job.gpus and job.id not in held:
-                held[job.id] = parse_card_indices(
-                    _run(["scontrol", "show", "job", job.id, "-d"])
-                )
+            if detailed.get(job.id, False) or (job.id in detailed and not job.running):
+                continue
+            detail = _run(["scontrol", "show", "job", job.id, "-d"])
+            if not detail:
+                continue
+            held[job.id] = parse_card_indices(detail)
+            asked[job.id] = parse_asked_cards(detail)
+            detailed[job.id] = job.running
+        self._detailed = detailed
         with self._lock:
             self._servers = sorted(servers.values(), key=lambda s: s.node)
-            self._state, self._jobs, self._held = state, jobs, held
-        mine = {
-            job.id: job.node
-            for job in jobs
-            if job.running and job.user == USER and job.node in servers
-        }
+            self._state, self._jobs = state, jobs
+            self._held, self._asked = held, asked
+        mine = sampled_jobs(jobs, held, servers)
         for job_id in list(self._launched):
             if job_id not in mine:
                 self._launched.pop(job_id, None)
@@ -433,6 +482,7 @@ class Fleet:
         with self._lock:
             servers = list(self._servers)
             state, jobs, held = dict(self._state), list(self._jobs), dict(self._held)
+            asked = dict(self._asked)
             latest, host = dict(self._latest), dict(self._host)
             sampled_nodes = {job.node for job in jobs if job.id in self._samplers}
         for key in [key for key in self._util if key not in latest]:
@@ -494,6 +544,7 @@ class Fleet:
                     allocated,
                     job_cards,
                     cards,
+                    {job.id: asked[job.id] for job in mine if job.id in asked},
                     host_reading,
                     group,
                 )

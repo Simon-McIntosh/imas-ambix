@@ -302,6 +302,83 @@ def test_the_scheduler_output_is_read_as_servers_jobs_and_cards():
     assert held == {"98dci4-gpu-0003": {0, 1, 2, 3, 6, 7}}
 
 
+QUEUE_AS_CAPTURED = (
+    "1308623|murawan|grpb|qwen38_flash_next|betelgeuse|PENDING|0:00|N/A|"
+    "gpu_0003_grpB|\n"
+    "1308599|murawan|grpb|qwen38_flash_next|betelgeuse|RUNNING|5-15:04:23|N/A|"
+    "gpu_0003_grpB|98dci4-gpu-0003\n"
+    "1313440|mcintos|grpa|ambix-router|betelgeuse|RUNNING|1-00:56:43|N/A|"
+    "gpu_0003_grpA|98dci4-gpu-0003\n"
+    "1294597|mcintos|grpa|deepseek-v4-1-flash|betelgeuse|RUNNING|21-13:41:22|"
+    "gres/gpu:4|gpu_0003_grpA|98dci4-gpu-0003\n"
+    "1314914|mcintos|iter|identity-clean.sh|betelgeuse|RUNNING|35:01|"
+    "gres/gpu:1|gpu_0003_grpA|98dci4-gpu-0003\n"
+    "1313403|mcintos|iter|codex-neo4j|titan|RUNNING|1-01:14:19|N/A|(null)|"
+    "98dci4-gpu-0002\n"
+)
+
+PER_JOB_REQUEST_DETAIL = (
+    "JobId=1308599 JobName=qwen38_flash_next\n"
+    "   ReqTRES=cpu=10,mem=360G,node=1,billing=10,gres/gpu=2\n"
+    "   AllocTRES=cpu=10,mem=360G,node=1,billing=10,gres/gpu=2\n"
+    "   JOB_GRES=gpu:h200:2\n"
+    "     Nodes=98dci4-gpu-0003 CPU_IDs=12-13,38-45 Mem=368640 "
+    "GRES=gpu:h200:2(IDX:1,3)\n"
+    "   TresPerJob=gres/gpu:2\n"
+)
+
+
+def test_cards_asked_for_per_job_are_counted_from_the_job_detail():
+    """The queue line of a job that asked for cards per job names none."""
+    jobs = fleet.parse_jobs(QUEUE_AS_CAPTURED)
+    peer = next(job for job in jobs if job.id == "1308599")
+    assert peer.gpus == 0 and peer.group == "B"
+    node = "98dci4-gpu-0003"
+    held = fleet.parse_card_indices(PER_JOB_REQUEST_DETAIL)
+    assert held == {node: {1, 3}}
+    assert fleet.parse_asked_cards(PER_JOB_REQUEST_DETAIL) == 2
+    assert fleet.parse_asked_cards("   ReqTRES=cpu=1,mem=4G,node=1\n") == 0
+    reading = Reading(
+        Server(node, "betelgeuse", "H200", 8),
+        jobs=[job for job in jobs if job.node == node or job.pending],
+        job_cards={"1308599": held[node], "1294597": {4, 5, 6, 7}},
+        asked={"1308623": 2},
+    )
+    # Two from the detail, four from the indices, one from the queue line.
+    assert reading.allocated_count == 7
+    waiting = next(job for job in jobs if job.pending)
+    assert reading.gpus(waiting) == 2
+    queue = _lines(panels.server_page(reading, [], WINDOW))
+    row = next(line for line in queue if line.startswith("1308599"))
+    assert row.rstrip().endswith("2")
+
+
+def test_a_sampler_joins_each_job_with_cards_and_one_job_on_a_bare_server(
+    monkeypatch,
+):
+    monkeypatch.setattr(fleet, "USER", "mcintos")
+    jobs = fleet.parse_jobs(QUEUE_AS_CAPTURED)
+    held = {
+        "1294597": {"98dci4-gpu-0003": {4, 5, 6, 7}},
+        "1314914": {"98dci4-gpu-0003": {0}},
+        "1313440": {},
+        "1313403": {},
+    }
+    nodes = {"98dci4-gpu-0003", "98dci4-gpu-0002"}
+    assert fleet.sampled_jobs(jobs, held, nodes) == {
+        "1294597": "98dci4-gpu-0003",
+        "1314914": "98dci4-gpu-0003",
+        "1313403": "98dci4-gpu-0002",
+    }
+
+
+def test_a_missing_lane_document_says_why():
+    page = _lines(
+        app.render("overview", [_h200()], None, WINDOW, reason="OSError: no record")
+    )
+    assert "no lane document read — OSError: no record" in page
+
+
 def test_a_short_screen_keeps_ten_queue_rows_by_dropping_the_ledger():
     readings = [_h200(jobs=40)]
     tall = _page("gpu-0003", readings, height=40)

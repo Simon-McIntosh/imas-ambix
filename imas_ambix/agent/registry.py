@@ -49,7 +49,7 @@ def _engine_id(host: str, port: int) -> str:
     return f"{_short_host(host)}:{port}"
 
 
-def _host_name(host: str) -> str:
+def host_name(host: str) -> str:
     """Return the node name a host spelling denotes, without domain or cluster part.
 
     A registration records the name the node itself reports, which is the fully
@@ -77,7 +77,7 @@ def _server_index(servers: Sequence[SiteServerConfig]) -> dict[str, str]:
             server.name,
             server.host,
             _short_host(server.host),
-            _host_name(server.host),
+            host_name(server.host),
         ):
             if key:
                 index.setdefault(key, server.name)
@@ -95,7 +95,7 @@ def _server_key(registration: ServeRegistration, index: dict[str, str]) -> str:
     for candidate in (registration.server, registration.host):
         if not candidate:
             continue
-        for spelling in (candidate, _host_name(candidate)):
+        for spelling in (candidate, host_name(candidate)):
             if spelling in index:
                 return index[spelling]
     return registration.host

@@ -590,9 +590,9 @@ def _engine_display(engine_id: object) -> str:
     host, separator, port = text.rpartition(":")
     if not separator:
         return text
-    from imas_ambix.agent.registry import _host_name
+    from imas_ambix.agent.registry import host_name
 
-    return f"{_host_name(host)}:{port}"
+    return f"{host_name(host)}:{port}"
 
 
 def _count(total: int, noun: str) -> str:
@@ -609,7 +609,7 @@ def router_line(document: dict[str, Any]) -> str:
     engines = document_engines(document)
     models = {str(entry["model"]) for entry in engines if entry.get("model")}
     servers = {
-        name for entry in engines if (name := _server_name(entry)) is not None
+        name for entry in engines if (name := server_name(entry)) is not None
     }
     bits = ["[bold]router[/]"]
     address = document.get("router")
@@ -624,15 +624,15 @@ def router_line(document: dict[str, Any]) -> str:
     return " [dim]·[/] ".join(bits)
 
 
-def _server_name(entry: dict[str, Any]) -> str | None:
+def server_name(entry: dict[str, Any]) -> str | None:
     """The node an engine entry runs on, without its port or cluster prefix."""
     host = entry.get("host") or entry.get("engine")
     if not isinstance(host, str) or not host:
         return None
     text = host.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
-    from imas_ambix.agent.registry import _host_name
+    from imas_ambix.agent.registry import host_name
 
-    return _host_name(text)
+    return host_name(text)
 
 
 def engines_table(

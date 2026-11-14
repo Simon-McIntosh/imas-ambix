@@ -874,7 +874,7 @@ def _pool_model(engine: dict[str, Any]) -> str | None:
 
 def _host_name(host: str) -> str:
     """A host reduced to the node name the registry's engine ids carry."""
-    from imas_ambix.agent.registry import _host_name as registry_host_name
+    from imas_ambix.agent.registry import host_name as registry_host_name
 
     return registry_host_name(host)
 

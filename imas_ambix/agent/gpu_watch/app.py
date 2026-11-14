@@ -56,6 +56,7 @@ class Document:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._value: dict | None = None
+        self._reason = ""
         self._stop = threading.Event()
         self.built = threading.Event()
 
@@ -66,11 +67,13 @@ class Document:
         from imas_ambix.agent import llm_watch
 
         while not self._stop.is_set():
-            value = None
-            with contextlib.suppress(Exception):
+            value, reason = None, ""
+            try:
                 value = llm_watch.build_document()
+            except Exception as error:
+                reason = f"{type(error).__name__}: {error}"
             with self._lock:
-                self._value = value
+                self._value, self._reason = value, reason
             self.built.set()
             self._stop.wait(DOCUMENT_SECONDS)
 
@@ -80,6 +83,12 @@ class Document:
     def get(self) -> dict | None:
         with self._lock:
             return self._value
+
+    @property
+    def reason(self) -> str:
+        """Why the last build produced no document; empty when it did."""
+        with self._lock:
+            return self._reason
 
 
 def page_names(readings: list[Reading]) -> list[str]:
@@ -126,8 +135,12 @@ def render(
     window: int,
     size: tuple[int, int] | None = None,
     keys: bool = False,
+    reason: str = "",
 ) -> Group:
-    """One page from the readings and the serving document."""
+    """One page from the readings and the serving document.
+
+    ``reason`` is why there is no document, shown where the lanes would be.
+    """
     served: list[Lane] = lanes(document)
     ledger = (document or {}).get("ledger")
     published_at = (document or {}).get("ledger_published_at")
@@ -136,9 +149,7 @@ def render(
         from imas_ambix.agent import llm_watch
 
         body: list[object] = (
-            [llm_watch.render(document)]
-            if document
-            else [Text.from_markup("[yellow]no lane document read[/]")]
+            [llm_watch.render(document)] if document else [panels.no_document(reason)]
         )
         if foot:
             body += [panels.rule(), Text.from_markup(foot)]
@@ -157,7 +168,14 @@ def render(
             size=size,
             footer=foot,
         )
-    return panels.overview_page(readings, served, ledger, published_at, foot)
+    return panels.overview_page(
+        readings,
+        served,
+        ledger,
+        published_at,
+        foot,
+        reason="" if document else reason,
+    )
 
 
 def step(page: str, key: str, readings: list[Reading]) -> str:
@@ -246,6 +264,7 @@ def run_live(window: int, page: str | None) -> int:
                         window,
                         console.size,
                         keys=True,
+                        reason=document.reason,
                     ),
                     refresh=True,
                 )
@@ -265,6 +284,7 @@ def run_live(window: int, page: str | None) -> int:
                                     window,
                                     console.size,
                                     keys=True,
+                                    reason=document.reason,
                                 ),
                                 refresh=True,
                             )
@@ -289,7 +309,13 @@ def run_once(window: int, page: str | None) -> int:
             time.sleep(1.0)
         document.built.wait(10)
         Console().print(
-            render(resolve_page(page, readings), readings, document.get(), window)
+            render(
+                resolve_page(page, readings),
+                readings,
+                document.get(),
+                window,
+                reason=document.reason,
+            )
         )
     finally:
         document.stop()
