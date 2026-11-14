@@ -54,6 +54,13 @@ scontrol show node 98dci4-gpu-0002
 
 `AllocTRES` against `CfgTRES` shows which of cores, memory and cards ran out.
 
+nova sends its titan work through `scripts/nova_lane/run.sh`, whose titan rung
+defaults to `--cpus-per-task=2 --mem=24G`. Its `AGENTS.md` compute hierarchy
+binds the same per-card size, along with a `--job-name` and explicit sizing on
+any raw `sbatch --wrap`. The three 4-6-core jobs measured above were raw
+`--wrap` submissions named `wrap`. Other repositories submitting to titan
+follow the table above in the same way.
+
 ## 2. Access via SLURM
 
 The node is split between groups via reservations + QoS:
