@@ -700,6 +700,47 @@ def overview_page(
     return Group(*parts)
 
 
+def lanes_page(
+    readings: list[Reading],
+    lanes: list[Lane],
+    ledger: list | None,
+    published_at: object = None,
+    footer: str = "",
+    reason: str = "",
+) -> Group:
+    """Every lane in full: the totals, then each lane's own readings.
+
+    Each lane is headed by the server and the cards it is served from, read
+    from the server's job that holds it, so a lane and the cards under it can
+    be matched across pages.
+    """
+    count = len(lanes)
+    title = split_line(
+        f"[bold]lanes[/] · {count} lane{'s' if count != 1 else ''}",
+        f"[dim]{time.strftime('%H:%M:%S')}[/]",
+        8,
+    )
+    held = {
+        job_id: (reading.server.name, cards)
+        for reading in readings
+        for job_id, cards in reading.job_cards.items()
+    }
+    sections: list[list[object]] = [[title], lanes_panel(lanes, reason)]
+    for lane in lanes:
+        server, cards = held.get(lane.job_id or "", (lane.server, set()))
+        where = " ".join(
+            bit
+            for bit in (server, f"gpu {ranges(sorted(cards))}" if cards else "")
+            if bit
+        )
+        sections.append(lane_panel(lane, where))
+    sections.append(ledger_panel(ledger, published_at))
+    parts = _join(sections)
+    if footer:
+        parts += [rule(), Text.from_markup(footer)]
+    return Group(*parts)
+
+
 def server_page(
     reading: Reading,
     lanes: list[Lane],

@@ -166,7 +166,7 @@ def _figures(line: str) -> list[str]:
     return line.replace("█", " ").replace("░", " ").split()
 
 
-@pytest.mark.parametrize("page", ["overview", "gpu-0003", "gpu-0004"])
+@pytest.mark.parametrize("page", ["overview", "gpu-0003", "gpu-0004", "lanes"])
 def test_every_table_row_ends_on_the_same_column(page):
     lines = _page(page, [_h200(), _b300()], engines=2)
     rules = [line for line in lines if set(line) == {"─"}]
@@ -264,6 +264,14 @@ def test_the_ledger_states_coverage_only_for_a_short_record():
     short = _lines(panels.Group(*panels.ledger_panel(_ledger(partial=True))))
     assert "covered" not in full[0] and "covered" in short[0]
     assert {len(line) for line in full + short} == {panels.WIDTH}
+
+
+def test_the_lanes_page_heads_each_lane_with_its_server_and_cards():
+    lines = _page("lanes", [_h200(), _b300()], engines=2)
+    heads = [line for line in lines if line.startswith("LANE ")]
+    assert len(heads) == 2
+    assert "gpu-0003 gpu 4-7" in heads[0] and "gpu-0004 gpu 0-1" in heads[1]
+    assert any(line.startswith("LEDGER") for line in lines)
 
 
 def test_keys_move_between_pages():

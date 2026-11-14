@@ -4,11 +4,11 @@ Pages::
 
     overview     every server, every lane, the period ledger
     <server>     one server: cards, lanes served from it, queue
-    lanes        the serving detail ``llm-watch`` draws
+    lanes        every lane in full: totals, each lane's readings, the ledger
 
 In ``--live`` the keys switch page without restarting: ``0`` is the overview,
 ``1``-``9`` a server in the order the overview lists them, ``l`` the lanes
-detail, the arrow keys step through all of them, and ``q`` quits. With one
+page, the arrow keys step through all of them, and ``q`` quits. With one
 server the view opens on that server, and its page carries the ledger; with
 more it opens on the overview.
 
@@ -146,14 +146,14 @@ def render(
     published_at = (document or {}).get("ledger_published_at")
     foot = footer(page, readings) if keys else ""
     if page == LANES:
-        from imas_ambix.agent import llm_watch
-
-        body: list[object] = (
-            [llm_watch.render(document)] if document else [panels.no_document(reason)]
+        return panels.lanes_page(
+            readings,
+            served,
+            ledger,
+            published_at,
+            foot,
+            reason="" if document else reason,
         )
-        if foot:
-            body += [panels.rule(), Text.from_markup(foot)]
-        return Group(*body)
     for reading in readings:
         if reading.server.name != page:
             continue
