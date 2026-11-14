@@ -23,7 +23,6 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from rich.console import Group
 from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
@@ -36,11 +35,14 @@ from imas_ambix.agent.watch_style import (
     head,
     line_count,
     meter,
+    page,
     ramp,
     section,
 )
 
 if TYPE_CHECKING:
+    from rich.constrain import Constrain
+
     from imas_ambix.agent.gpu_watch.fleet import Job, Reading
     from imas_ambix.agent.gpu_watch.lane import Lane
 
@@ -384,7 +386,7 @@ def view(
     footer: str = "",
     reason: str = "",
     width: int = DEFAULT_WIDTH,
-) -> Group:
+) -> Constrain:
     """The whole page: servers, lanes, the ledger, then the queue.
 
     ``size`` is the screen as ``(columns, lines)``, with zero lines for a
@@ -433,5 +435,5 @@ def view(
         rows = rows_left(parts)
     queue = queue_section(readings, width, None if rows is None else max(1, rows))
     if tail:
-        return Group(*parts, *queue, *tail)
-    return Group(*parts, *queue[:-1])
+        return page([*parts, *queue, *tail], width)
+    return page([*parts, *queue[:-1]], width)

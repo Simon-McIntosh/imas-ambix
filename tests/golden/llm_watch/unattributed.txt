@@ -1,27 +1,27 @@
-LANE  deepseek-v4.1-flash · 4×H200 · gpu-0003 · 262k ctx                               DeepSeek-V4.1-Flash-1017@1bae0e10
-SERVING           available              tok/s         per stream          prefill/s            ttft s           verdict
-                       4/12                558               49.3              2.69k               0.6         congested
+LANE  deepseek-v4.1-flash · 4×H200 · gpu-0003 · 262k ctx                     DeepSeek-V4.1-Flash-1017@1bae0e10
+SERVING            in use            queue            tok/s       per stream        prefill/s          verdict
+                    12/12               23              558             49.3            2.69k        congested
 
-GATE                running            waiting             oldest             queued              runs             slots
-                       11.3                 23                22s                  0                20                13
+LOAD              running         engine q           oldest           ttft s             runs            slots
+                     11.3                0              22s              0.6               20               13
 
-MEMORY            kv pool %        host tier %        cache hit %           mean ctx          max reqs         preempted
-                ██░░░░░░ 21        ████████ 99        ████████ 95               144k                25                 0
+MEMORY          kv pool %      host tier %      cache hit %         mean ctx         max reqs        preempted
+              ██░░░░░░ 21      ████████ 99      ████████ 95             144k               25                0
 
 ACCOUNTS 5m
-account                 sessions              runs            in use           per run           wait s          share %
-mcintos                       11                23              12.4               0.5                2      ████████ 99
-llealsa                        1                 2               0.1               0.1                0       ░░░░░░░░ 1
-unattributed                   2                 0               0.0                 —                2       ░░░░░░░░ 0
+account               sessions            runs          in use         per run          wait s         share %
+mcintos                     11              23            12.4             0.5               2     ████████ 99
+llealsa                      1               2             0.1             0.1               0      ░░░░░░░░ 1
+unattributed                 2               0             0.0               —               2      ░░░░░░░░ 0
 
 PROJECTS 5m  unattributed
 unattributed holds nothing in the window — no finished request named it
 
 ACTIVITY  strips 30m · counts 5m
-                 in flight                      gate wait                            done    aborted    failed   expired
-                 ▁▁▁▁▁▁▁▁▁▁▃▅▇███▃▃▃▃▃▃▃▃▃▃▃▃▃▃ ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂        412          3         0         0
+                 in flight                      gate wait                         done aborted  failed expired
+                 ▁▁▁▁▁▁▁▁▁▁▃▅▇███▃▃▃▃▃▃▃▃▃▃▃▃▃▃ ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂     412       3       0       0
 
 LEDGER
-period               tok in           cached %            tok out             util %            cost $           covered
-1 hour                 232M        ████████ 98              1.15M        ████████ 97              7.45              full
-1 day                 3.31G        ████████ 96              18.2M        ████████ 96            131.02               12h
+period             tok in         cached %          tok out           util %           cost $          covered
+1 hour               232M      ████████ 98            1.15M      ████████ 97             7.45             full
+1 day               3.31G      ████████ 96            18.2M      ████████ 96           131.02              12h

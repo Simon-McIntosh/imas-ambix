@@ -19,8 +19,9 @@ import signal
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING
 
-from rich.console import Console, Group
+from rich.console import Console
 from rich.live import Live
 from rich.text import Text
 
@@ -28,6 +29,9 @@ from imas_ambix.agent.gpu_watch import panels
 from imas_ambix.agent.gpu_watch.fleet import Fleet, Reading
 from imas_ambix.agent.gpu_watch.lane import lanes
 from imas_ambix.agent.watch_style import page_width
+
+if TYPE_CHECKING:
+    from rich.constrain import Constrain
 
 #: Seconds between reads of the live serving document.
 DOCUMENT_SECONDS = 5.0
@@ -86,7 +90,7 @@ def render(
     size: tuple[int, int] | None = None,
     keys: bool = False,
     reason: str = "",
-) -> Group:
+) -> Constrain:
     """The page from the readings and the serving document.
 
     ``reason`` is why there is no document, shown where the lanes would be.

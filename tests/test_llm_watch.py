@@ -2,7 +2,7 @@
 
 The fixtures are documents rather than files on disk: what the view takes is a
 built document, and every figure in one is a fact some published source
-measured. The goldens are the rendered text of those documents at 120 columns,
+measured. The goldens are the rendered text of those documents at 110 columns,
 committed so a change to the view shows up as a diff rather than as a
 plausible-looking screen.
 
@@ -704,22 +704,40 @@ def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
     assert "31" in _cell_colour(idle, "░░░░").split(";")
 
 
-def test_the_lane_leads_with_the_room_left_and_its_rates() -> None:
+def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
     lines = render(one_engine_fixture()).splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
     assert lines[at].split()[1:] == [
-        "available", "tok/s", "per", "stream", "prefill/s", "ttft", "s",
+        "in", "use", "queue", "tok/s", "per", "stream", "prefill/s",
         "verdict",
     ]
-    assert lines[at + 1].split()[0].count("/") == 1
 
 
-def test_the_engine_queue_is_a_column_of_the_gate_band() -> None:
+def test_in_use_is_requests_generating_and_never_the_queue() -> None:
+    """A queue at the gate does not turn the first figure negative.
+
+    The lane document's headroom subtracts the waiting requests, so a full
+    gate with a queue publishes a negative room; the view draws what is in
+    use over the width, and the queue beside it.
+    """
+    document = one_engine_fixture()
+    document["lane"]["headroom"] = -85
+    document["lane"]["router_generation_gate"].update(
+        in_flight=16, effective_width=16, waiting=85
+    )
+    lines = render(document).splitlines()
+    at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
+    assert lines[at + 1].split()[0] == "16/16"
+    assert lines[at + 1].split()[1] == "85"
+    assert "-85" not in "\n".join(lines)
+
+
+def test_the_engine_queue_is_a_column_of_the_load_band() -> None:
     def queued(document: dict[str, Any]) -> str:
         lines = render(document).splitlines()
-        at = next(i for i, line in enumerate(lines) if line.startswith("GATE"))
-        assert lines[at].split()[4] == "queued"
-        return lines[at + 1].split()[3]
+        at = next(i for i, line in enumerate(lines) if line.startswith("LOAD"))
+        assert lines[at].split()[2:4] == ["engine", "q"]
+        return lines[at + 1].split()[1]
 
     document = one_engine_fixture()
     document["live"]["engine_queue"] = 0.0
@@ -789,15 +807,15 @@ def test_unavailable_live_entry_renders_one_line_and_no_figures() -> None:
     """A missing receipt file is a stated reason, never a row of zeros.
 
     The rates are dashes under a line naming the reason, never zeroed: a zero
-    is a measurement, and this document makes none. The room left is the lane
-    document's and still stands.
+    is a measurement, and this document makes none. The requests in use are
+    the lane document's and still stand.
     """
     text = render(unavailable_live_fixture())
     assert "live entry unavailable" in text
     assert "no raw receipt file with a readable row" in text
     lines = text.splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
-    assert lines[at + 1].split()[1:5] == ["—", "—", "—", "—"]
+    assert lines[at + 1].split()[2:5] == ["—", "—", "—"]
     assert "11.3" not in text
 
 

@@ -2,6 +2,7 @@
 
 ``llm-watch`` and ``ambix-watch`` are drawn from the same parts, so a reader
 moving between them finds one layout: a single column as wide as the page,
+which stops at :data:`MAX_WIDTH` however wide the terminal is,
 made of sections. A section is a bold title on a line of its own, its table
 beneath, and a blank line after it; nothing is framed or ruled. A table has
 fixed-width naming columns on the left and figure columns that share the
@@ -13,6 +14,7 @@ changing where they are.
 from __future__ import annotations
 
 from rich.console import Group
+from rich.constrain import Constrain
 from rich.table import Table
 from rich.text import Text
 
@@ -22,25 +24,25 @@ __all__ = [
     "DASH", "DEFAULT_WIDTH", "MAX_WIDTH", "NARROW_WIDTH", "WIDTHS",
     "blank", "cell", "flex_table", "fmt_count", "fmt_ctx", "fmt_rate",
     "fmt_span", "fmt_tokens", "fmt_usd", "head", "line_count", "meter",
-    "page_width", "pct", "bar_width", "ramp", "section", "spark", "split_line",
+    "page", "page_width", "pct", "bar_width", "ramp", "section", "spark", "split_line",
 ]
 
 #: The page width when nothing says how wide the terminal is.
-DEFAULT_WIDTH = 120
+DEFAULT_WIDTH = 110
 
 #: The narrowest and the widest a page is drawn. Below the first the figure
 #: columns no longer hold their figures; above the second the eye has too far
 #: to travel between a row's name and its last figure.
 MIN_WIDTH = 80
-MAX_WIDTH = 160
+MAX_WIDTH = 110
 
 #: The page width below which a table drops its least important columns, so
 #: the ones it keeps are never cut.
 NARROW_WIDTH = 100
 
 #: The widths the views are checked at: the narrowest page, the default, and
-#: a wide one.
-WIDTHS = (80, 120, 150)
+#: the widest.
+WIDTHS = (80, 100, 110)
 
 
 def page_width(columns: int | None = None) -> int:
@@ -48,6 +50,15 @@ def page_width(columns: int | None = None) -> int:
     if not columns:
         return DEFAULT_WIDTH
     return max(MIN_WIDTH, min(MAX_WIDTH, int(columns)))
+
+
+def page(parts: list[object], width: int) -> Constrain:
+    """``parts`` stacked as one page ``width`` columns wide.
+
+    The width holds on a wider terminal, where a table would otherwise
+    stretch its figures across the whole screen.
+    """
+    return Constrain(Group(*parts), width)
 
 
 def bar_width(width: int) -> int:

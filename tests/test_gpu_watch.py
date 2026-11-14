@@ -146,7 +146,7 @@ def _document(engines: int = 1, partial: bool = False) -> dict:
     return document
 
 
-NARROW, WIDE = 120, 150
+NARROW, WIDE = 100, 190
 
 
 def _lines(renderable: object, width: int = NARROW) -> list[str]:
@@ -220,7 +220,7 @@ def test_temperature_and_power_are_the_server_s_and_not_each_card_s():
 def test_a_wider_page_draws_longer_utilisation_bars():
     narrow = _row(_page([_h200()], width=80), "gpu 4").count("█")
     wide = _row(_page([_h200()], width=WIDE), "gpu 4").count("█")
-    assert wide > 2 * narrow
+    assert wide > narrow
 
 
 def test_unreadable_cards_share_one_row_and_stay_out_of_the_mean():
@@ -243,35 +243,42 @@ def test_each_lane_is_titled_with_its_server_and_cards():
     assert "other-model" in lanes[1] and "gpu-0004 gpu 0-1" in lanes[1]
 
 
-def test_a_lane_leads_with_the_room_left_and_its_rates():
+def test_a_lane_leads_with_requests_in_use_and_its_rates():
     lines = _page([_h200()])
     at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
     assert lines[at].split() == [
         "SERVING",
-        "available",
+        "in",
+        "use",
+        "queue",
         "tok/s",
         "per",
         "stream",
         "prefill/s",
-        "ttft",
-        "s",
         "verdict",
     ]
-    assert lines[at + 1].split() == ["9/16", "300", "50.0", "900", "0.6", "open"]
+    assert lines[at + 1].split() == ["7/16", "0", "300", "50.0", "900", "open"]
 
 
-def test_the_engine_queue_is_a_column_of_the_gate_band():
+def test_the_engine_queue_is_a_column_of_the_load_band():
     lines = _page([_h200()])
-    at = next(i for i, line in enumerate(lines) if line.startswith("GATE"))
+    at = next(i for i, line in enumerate(lines) if line.startswith("LOAD"))
     assert lines[at].split()[1:] == [
         "running",
-        "waiting",
+        "engine",
+        "q",
         "oldest",
-        "queued",
+        "ttft",
+        "s",
         "runs",
         "slots",
     ]
-    assert lines[at + 1].split() == ["5.5", "0", "—", "0", "12", "74"]
+    assert lines[at + 1].split() == ["5.5", "0", "—", "0.6", "12", "74"]
+
+
+def test_a_terminal_wider_than_the_page_does_not_stretch_it():
+    lines = _page([_h200()], width=WIDE)
+    assert max(len(line.rstrip()) for line in lines) <= 110
 
 
 def test_two_servers_share_one_queue_that_names_each_job_s_server():
