@@ -4,6 +4,13 @@
   "added_failure_note": "The reviewed run records no baseline_suite/after_suite pair, so the delta is read from its gate logs: gate-tests-repair.log reports 57 passed EXIT=0 at 4d6d96e2 and gate-ruff-repair.log reports All checks passed EXIT=0, with negative-control-repair.log the only red run (1 failed, EXIT=1, by design). No failures were added.",
   "completed_at": "2026-10-27T14:20:57.526Z",
   "dispatched_at": "2026-10-27T14:09:31Z",
+  "finding_dispositions": {
+    "1": {
+      "kind": "exempted",
+      "reason": "view.py and _entry_for were deleted in 4672f022; lane.py matches an engine's endpoint by model id. Residual: two engines serving the same model id would still share one endpoint entry",
+      "recorded_at": "2026-11-14T08:08:18.166410+00:00"
+    }
+  },
   "findings": [
     {
       "file": "tests/test_gpu_watch.py",
