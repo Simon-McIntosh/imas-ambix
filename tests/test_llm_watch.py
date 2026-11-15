@@ -1112,22 +1112,23 @@ def test_main_draws_the_bands_of_the_engine_it_names(
 
 
 def test_the_queue_band_counts_the_work_lined_up_between_live_and_memory() -> None:
-    """Ready work is green from a gate's width, and blocked work is apart."""
+    """Ready work is green from a gate's width, and work with unlanded dependencies is apart."""
     document = one_engine_fixture()
     width = document["lane"]["router_generation_gate"]["effective_width"]
     document["queue"] = {
-        "workers": 15, "ready": int(width), "blocked": 48, "paused": 7,
+        "workers": 15, "ready": int(width), "waiting": 48, "paused": 7,
         "oldest_ready_seconds": 131000.0,
     }
+    document["lane"]["worker_slots"] = 19
     lines = render(document).splitlines()
     names = [line.split()[0] for line in lines if line[:1].islower()]
     at = names.index("live")
     assert names[at:at + 3] == ["live", "queue", "memory"]
     row = next(i for i, line in enumerate(lines) if line.startswith("queue"))
     assert lines[row].split()[1:] == [
-        "workers", "ready", "blocked", "paused", "oldest", "ready",
+        "workers", "ready", "paused", "waiting", "slots", "oldest", "ready",
     ]
-    assert lines[row + 1].split() == ["15", f"{width:.0f}", "48", "7", "1d"]
+    assert lines[row + 1].split() == ["15", f"{width:.0f}", "7", "48", "19", "1d"]
     band = _coloured(lw.queue_band(document["queue"], document["lane"]))
     assert "32" in _cell_colour(band, f"{width:.0f}").split(";")
     document["queue"]["ready"] = 1
@@ -1162,7 +1163,7 @@ def test_the_work_queue_counts_local_requests_by_what_they_wait_for(tmp_path) ->
     (tmp_path / "r-torn.json").write_text("{", encoding="utf-8")
     now = dt.datetime(2026, 11, 15, 12, 0, tzinfo=dt.UTC)
     assert work_queue.read(tmp_path, now) == {
-        "workers": 2, "ready": 2, "blocked": 1, "paused": 2,
+        "workers": 2, "ready": 2, "waiting": 1, "paused": 2,
         "oldest_ready_seconds": 7200.0,
     }
     (tmp_path / "r-3.json").unlink()

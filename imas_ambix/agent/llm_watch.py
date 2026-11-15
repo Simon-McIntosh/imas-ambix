@@ -431,25 +431,31 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
 
 
 def queue_band(queue: dict[str, Any], lane: dict[str, Any]) -> Table:
-    """The work lined up for the lane: launched, ready, and not yet ready.
+    """The work lined up for the lane, set under the live row's columns.
 
-    ``workers`` are runs launched and still going; each holds a gate slot only
-    while it generates, so they outnumber the requests in use. ``ready`` are
-    requests waiting only for a worker slot, and they are what keeps the cards
-    full: green from a gate's width of them, yellow from half, red below.
-    ``blocked`` wait on a plan section that has not landed, ``paused`` are set
-    aside by a decision or a failed launch, and ``oldest ready`` is how long
-    the longest-waiting ready request has queued.
+    Each figure stands under the live figure it is read against. ``workers``
+    are runs launched and still going, under the requests in use: a worker
+    holds a gate slot only while it generates, so workers outnumber requests.
+    ``ready`` are requests waiting only for a worker slot, under the requests
+    waiting at the gate; they are what keeps the cards full, so the count is
+    green from a gate's width of them, yellow from half, red below.
+    ``paused`` are set aside by a decision or a failed launch. ``waiting``
+    wait on a plan section that has not landed. ``slots`` is how many more
+    workers the router would admit now. ``oldest ready`` is how long the
+    longest-waiting ready request has queued, at the right edge under the
+    time to a first token.
     """
     slots = _number(lane.get("router_generation_gate") or {}, "effective_width")
     return _band(
         "queue",
-        ["workers", "ready", "blocked", "paused", "oldest ready"],
+        ["workers", "ready", "paused", "waiting", "slots", "", "oldest ready"],
         [
             fmt_count(queue.get("workers")),
             backlog_count(_number(queue, "ready"), slots),
-            fmt_count(queue.get("blocked")),
             fmt_count(queue.get("paused")),
+            fmt_count(queue.get("waiting")),
+            fmt_count(lane.get("worker_slots")),
+            "",
             fmt_span(queue.get("oldest_ready_seconds")),
         ],
     )

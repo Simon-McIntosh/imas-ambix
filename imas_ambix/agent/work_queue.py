@@ -13,7 +13,7 @@ recorded, and this module counts those pointers:
     so there are normally more workers than requests in use.
 ``ready``
     Requests with nothing left to wait for but a free worker slot.
-``blocked``
+``waiting``
     Requests whose plan section waits on another section that has not landed.
 ``paused``
     Requests set aside: held by a decision, or backing off after a failed
@@ -89,7 +89,7 @@ def read(
     except OSError:
         return None
     now = now or _dt.datetime.now(_dt.UTC)
-    counts = {"workers": 0, "ready": 0, "blocked": 0, "paused": 0}
+    counts = {"workers": 0, "ready": 0, "waiting": 0, "paused": 0}
     oldest: float | None = None
     present = set()
     for entry in entries:
@@ -112,7 +112,7 @@ def read(
         elif phase == "held" or (phase == "queued" and pointer["set_aside"]):
             counts["paused"] += 1
         elif phase == "awaiting-upstream":
-            counts["blocked"] += 1
+            counts["waiting"] += 1
         elif phase == "queued":
             counts["ready"] += 1
             age = _age(pointer["queued_at"], now)
