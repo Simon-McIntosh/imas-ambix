@@ -13,10 +13,10 @@ order a reader asks about a lane:
 ===========  ==========================================================
 section      answers
 ===========  ==========================================================
-lane         two unnamed rows. The first: requests in use on the cards,
-             the queue held back from them, the aggregate and
-             per-stream rates, the prefill rate and the time to a first
-             token. The second: whether memory is the limit
+lane         two bands. live: requests in use on the cards, the queue
+             held back from them, the aggregate and per-stream rates,
+             the prefill rate and the time to a first token. memory:
+             whether memory is the limit
 accounts     who is using the lane
 projects     what one account is running on it
 activity     how the last half hour went, and how requests ended
@@ -65,8 +65,10 @@ from imas_ambix.agent.registry import _engine_id
 from imas_ambix.agent.watch_style import (
     DASH,
     DEFAULT_WIDTH,
+    NARROW_WIDTH,
     bar_width,
     cell,
+    figure_bar,
     flex_table,
     fmt_ctx,
     fmt_rate,
@@ -78,12 +80,9 @@ from imas_ambix.agent.watch_style import (
     page_width,
     pct,
     ramp,
-    right_align,
     section,
     spark,
     split_line,
-    tile_bar,
-    tile_table,
 )
 
 if TYPE_CHECKING:
@@ -110,6 +109,7 @@ ENGINE_CELL_WIDTH = 16
 ENGINE_STRIP_WIDTH = 16
 
 #: The naming columns of the other tables.
+BAND_NAME_WIDTH = 8
 ACCOUNT_NAME_WIDTH = 14
 PROJECT_NAME_WIDTH = 20
 PERIOD_WIDTH = 8
@@ -339,15 +339,17 @@ def head_line(document: dict[str, Any]) -> str:
 # ── the lane's bands ──────────────────────────────────────────────────
 
 
-def _band(width: int, labels: list[str], values: list[str]) -> Table:
-    """One band: a row of labels, each directly over its figure.
+def _band(name: str, labels: list[str], values: list[str]) -> Table:
+    """One named band: a row of labels over a row of figures.
 
-    The figures stand one to a tile from the page's left edge, so a band with
-    fewer figures than another is shorter and the ones they share line up.
+    The name stands in a short column at the left, which keeps the first
+    figure clear of the margin. A band's figure columns are its own: the live
+    row carries one figure more than the memory row, and each is spread over
+    the page's whole width.
     """
-    table = tile_table(width, (1,) * len(labels))
-    head(table, labels)
-    table.add_row(*values)
+    table = flex_table((BAND_NAME_WIDTH,), len(labels))
+    table.add_row(f"[bold]{name}[/]", *[f"[dim]{label}[/]" for label in labels])
+    table.add_row("", *values)
     return table
 
 
@@ -372,9 +374,7 @@ def backlog_count(value: float | None, width: float | None = None) -> str:
     return f"[{ramp(100.0 * value / width, 100.0, 50.0)}]{value:.0f}[/]"
 
 
-def serving_band(
-    lane: dict[str, Any], live: dict[str, Any], width: int = DEFAULT_WIDTH
-) -> Table:
+def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
     """The lane's one row of live figures: its use, its queues and its rates.
 
     ``in use`` is the requests generating now over the gate's width in force:
@@ -407,7 +407,7 @@ def serving_band(
     prefill = _number(live, "prefill_toks_per_s")
     ttft = _number(live, "median_time_to_first_token_s")
     return _band(
-        width,
+        "live",
         ["in use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
         [
             (f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
@@ -446,20 +446,19 @@ def memory_band(
     hit = _number(live, "cache_hit_rate")
     measured = live.get("state") == "measured"
     mean_ctx = _number(lane, "mean_context") or _number(lane, "mean_context_instant")
-    bar = tile_bar(width)
-
-    def level(value: float | None, mode: str) -> str:
-        return f"{pct(value, mode, width=bar)}%" if value is not None else DASH
-
+    labels = ["kv pool %", "host tier %", "cache hit %", "mean ctx", "max reqs",
+              "preempted"]
+    bar = figure_bar(width, BAND_NAME_WIDTH, len(labels))
     return _band(
-        width,
-        ["kv pool", "host tier", "cache hit", "mean ctx", "max reqs",
-         "preempted"],
+        "memory",
+        labels,
         [
-            level(None if pool is None else pool * 100.0 if pool <= 1.0 else pool,
-                  "fill"),
-            level(None if host_tier is None else host_tier * 100.0, "plain"),
-            level(100.0 * hit if measured and hit is not None else None, "good"),
+            (pct(pool * 100.0 if pool <= 1.0 else pool, width=bar)
+             if pool is not None else DASH),
+            (pct(host_tier * 100.0, "plain", width=bar)
+             if host_tier is not None else DASH),
+            (pct(100.0 * hit, "good", width=bar)
+             if measured and hit is not None else DASH),
             fmt_ctx(mean_ctx),
             cell(_number(lane, "concurrent_requests"), 1.0, 1.0),
             cell(_number(lane, "preemptions"), 0.0, 0.0, inverted=True),
@@ -481,7 +480,7 @@ def bands(
     """
     live = document.get("live") or {}
     lane = document.get("lane") or {}
-    parts: list[object] = [serving_band(lane, live, width)]
+    parts: list[object] = [serving_band(lane, live)]
     if live.get("state") != "measured":
         reason = live.get("reason") or "no reading"
         parts.append(Text.from_markup(
@@ -1076,10 +1075,9 @@ def ledger_table(
     a column that reads ``full`` on every row says nothing. A ledger of
     several models is one table with a model column, because stacking one
     model's periods under another's would put two rows of one period together
-    with nothing saying which model priced either. A ledger that needs
+    with nothing saying which model priced either. A narrow page that needs
     both extra columns gives up the cached share, which the lane's own cache
-    figure already reports. The token and cost figures are right-aligned
-    under their labels, so a column of them is read by magnitude.
+    figure already reports.
     """
     rows = [row for row in (ledger or []) if isinstance(row, dict)
             and row.get("label")]
@@ -1095,15 +1093,15 @@ def ledger_table(
 
     grouped = len({str(row.get("model")) for row in rows if row.get("model")}) > 1
     partial = not all(covered(row) for row in rows)
-    # A model column takes two tiles, which leaves none for the cached share
-    # once a coverage column is drawn as well.
-    cached_shown = not (grouped and partial)
-    bar = tile_bar(width)
+    cached_shown = not (grouped and partial and width < NARROW_WIDTH)
     labels = ["period", *(("model",) if grouped else ()),
-              "tok in", *(("cached",) if cached_shown else ()),
-              "tok out", "util", "cost $",
+              "tok in", *(("cached %",) if cached_shown else ()),
+              "tok out", "util %", "cost $",
               *(("covered",) if partial else ())]
-    lines = [labels]
+    names = (PERIOD_WIDTH, MODEL_WIDTH) if grouped else (PERIOD_WIDTH,)
+    bar = figure_bar(width, sum(names), len(labels) - len(names))
+    table = flex_table(names, len(labels) - len(names))
+    head(table, labels)
     for row in rows:
         tokens_in = float(row.get("tokens_in") or 0.0)
         cached = float(row.get("cached") or 0.0)
@@ -1113,12 +1111,12 @@ def ledger_table(
             str(row.get("label")),
             *((escape(str(row.get("model") or DASH)),) if grouped else ()),
             fmt_tokens(tokens_in),
-            *(((f"{pct(100.0 * cached / tokens_in, 'good', width=bar)}%"
+            *(((pct(100.0 * cached / tokens_in, "good", width=bar)
                 if tokens_in > 0 else DASH),) if cached_shown else ()),
             fmt_tokens(float(row.get("tokens_out") or 0.0)),
             # A lane is paid for whether or not it is used, so a full period is
             # the healthy one.
-            (f"{pct(utilisation, 'good', width=bar)}%"
+            (pct(utilisation, "good", width=bar)
              if utilisation is not None else DASH),
             fmt_usd(cost).lstrip("$") if isinstance(cost, (int, float)) else DASH,
         ]
@@ -1127,15 +1125,6 @@ def ledger_table(
                 "full" if covered(row)
                 else f"[yellow]{fmt_span(float(row.get('covered') or 0.0))}[/]"
             )
-        lines.append(cells)
-    right_align(lines, tuple(
-        labels.index(name) for name in ("tok in", "tok out", "cost $")
-    ))
-    table = tile_table(
-        width, tuple(2 if name == "model" else 1 for name in labels)
-    )
-    head(table, lines[0])
-    for cells in lines[1:]:
         table.add_row(*cells)
     parts: list[object] = [table]
     age = _published_age(published_at)

@@ -543,18 +543,18 @@ def test_a_published_lane_document_fills_the_memory_band() -> None:
     )
     document = one_engine_fixture()
     document["lane"] = lane
-    row = render(document).split("kv pool", 1)[1].splitlines()[1]
+    row = render(document).split("kv pool %", 1)[1].splitlines()[1]
     # kv pool is the engine's own counter; the three beside it are the lane
     # document's, and the palette never showed values for any of them before.
     assert _cells(row) == [
-        "█░░░░░", "21%", "██████", "100%", "██████", "95%", "130k", "27", "—",
+        "██░░░░░░░", "21", "█████████", "100", "█████████", "95", "130k", "27", "—",
     ]
     # The same render with the copy removed is the state this test exists to
     # catch: every figure the block fails to carry reads as a dash, not a zero.
     for key in ("hicache_host", "mean_context", "concurrent_requests"):
         del lane[key]
-    bare = render(document).split("kv pool", 1)[1].splitlines()[1]
-    assert _cells(bare) == ["█░░░░░", "21%", "—", "██████", "95%", "—", "—", "—"]
+    bare = render(document).split("kv pool %", 1)[1].splitlines()[1]
+    assert _cells(bare) == ["██░░░░░░░", "21", "—", "█████████", "95", "—", "—", "—"]
 
 
 def test_head_line_names_the_checkpoint_the_served_engine_loaded() -> None:
@@ -728,8 +728,8 @@ def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
 
 def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
     lines = render(one_engine_fixture()).splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
-    assert lines[at].split() == [
+    at = next(i for i, line in enumerate(lines) if line.startswith("live"))
+    assert lines[at].split()[1:] == [
         "in", "use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft", "s",
     ]
 
@@ -747,7 +747,7 @@ def test_in_use_is_requests_generating_and_never_the_queue() -> None:
         in_flight=16, effective_width=16, waiting=85
     )
     lines = render(document).splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
+    at = next(i for i, line in enumerate(lines) if line.startswith("live"))
     assert lines[at + 1].split()[0] == "16/16"
     assert lines[at + 1].split()[1] == "85"
     assert "-85" not in "\n".join(lines)
@@ -756,8 +756,8 @@ def test_in_use_is_requests_generating_and_never_the_queue() -> None:
 def test_requests_the_engine_holds_are_a_column_beside_the_queue() -> None:
     def queued(document: dict[str, Any]) -> str:
         lines = render(document).splitlines()
-        at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
-        assert lines[at].split()[3] == "held"
+        at = next(i for i, line in enumerate(lines) if line.startswith("live"))
+        assert lines[at].split()[4] == "held"
         return lines[at + 1].split()[2]
 
     document = one_engine_fixture()
@@ -835,7 +835,7 @@ def test_unavailable_live_entry_renders_one_line_and_no_figures() -> None:
     assert "live entry unavailable" in text
     assert "no raw receipt file with a readable row" in text
     lines = text.splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
+    at = next(i for i, line in enumerate(lines) if line.startswith("live"))
     assert lines[at + 1].split()[3:7] == ["—", "—", "—", "—"]
     assert "11.3" not in text
 

@@ -24,22 +24,22 @@ import time
 from typing import TYPE_CHECKING
 
 from rich.markup import escape
+from rich.padding import Padding
+from rich.table import Table
 from rich.text import Text
 
 from imas_ambix.agent import llm_watch
 from imas_ambix.agent.watch_style import (
     DASH,
     DEFAULT_WIDTH,
+    NARROW_WIDTH,
     fmt_ctx,
     head,
     line_count,
     meter,
     page,
     ramp,
-    right_align,
     section,
-    tile_content,
-    tile_table,
 )
 
 if TYPE_CHECKING:
@@ -129,13 +129,42 @@ def server_title(reading: Reading) -> str:
     return " [dim]·[/] ".join(bits)
 
 
-def bar_cells(width: int) -> int:
-    """Cells a card's bar takes: two tiles, less the percentage after it.
+#: Blank cells to the left of every column after the first.
+GAP = 2
 
-    The bar and its percentage fill their column exactly, so the last
+#: Cells the card rows are set in from the server's title, which groups them
+#: under it.
+CARD_INDENT = 2
+
+
+def column_cells(width: int) -> int:
+    """Cells each of a card's three bar columns holds on a page ``width`` wide."""
+    name = 28 if width >= NARROW_WIDTH else 20
+    return (width - CARD_INDENT - name) // 3 - GAP
+
+
+def bar_cells(width: int) -> int:
+    """Cells a card's bar takes: its column, less the percentage after it.
+
+    The bar and its percentage fill the column exactly, so the last
     percentage ends on the page's right edge.
     """
-    return max(6, tile_content(width, 2) - 5)
+    return max(6, column_cells(width) - 5)
+
+
+def _card_table(width: int) -> Table:
+    """A naming column, then three equal columns that end on the right edge."""
+    column = column_cells(width)
+    table = Table(box=None, padding=(0, 0, 0, GAP), pad_edge=False, show_header=False)
+    table.add_column(
+        "",
+        width=width - CARD_INDENT - 3 * (column + GAP),
+        no_wrap=True,
+        overflow="ellipsis",
+    )
+    for _ in range(3):
+        table.add_column("", width=column, no_wrap=True, overflow="ellipsis")
+    return table
 
 
 def _level(value: float | None, cells: int) -> str:
@@ -195,7 +224,7 @@ def server_section(
     right of the title.
     """
     cells = bar_cells(width)
-    table = tile_table(width, (2, 2, 2, 2))
+    table = _card_table(width)
     groups = job_groups(reading)
     head(table, ["card", "util now", f"util {window}s", "memory"])
     read = reading.cards
@@ -228,7 +257,7 @@ def server_section(
             )
         )
     if read or hidden or reading.host is not None:
-        body.append(table)
+        body.append(Padding(table, (0, 0, 0, CARD_INDENT)))
     else:
         body.append(
             Text.from_markup(
@@ -341,50 +370,58 @@ def queue_section(
         for job in reading.jobs:
             where = reading.server.name if job.running else ""
             jobs.setdefault(job.id, (job, where, reading.gpus(job)))
-    table = tile_table(width, (1, 1, 2, 2, 1, 1))
-    labels = ["job", "user", "name", "server", "elapsed", "cards"]
+    table = Table(
+        box=None, padding=(0, 0, 0, GAP), pad_edge=False, show_header=False, expand=True
+    )
+    for name_width in (8, 10):
+        table.add_column("", width=name_width, no_wrap=True, overflow="ellipsis")
+    table.add_column("", ratio=1, no_wrap=True, overflow="ellipsis")
+    table.add_column(
+        "",
+        width=24 if width >= NARROW_WIDTH else 18,
+        no_wrap=True,
+        overflow="ellipsis",
+    )
+    table.add_column("", width=9, justify="right", no_wrap=True)
+    table.add_column("", width=5, justify="right", no_wrap=True)
+    head(table, ["job", "user", "name", "server", "elapsed", "cards"])
     every = [job for job, _, _ in jobs.values()]
     running = sum(1 for job in every if job.running)
     waiting = sum(1 for job in every if job.pending)
     title = f"[bold]queue[/]  [dim]{running} running · {waiting} pending[/]"
     if not every:
-        head(table, labels)
-        table.add_row("[dim]idle[/]")
+        table.add_row("[dim]idle[/]", "", "", "", "", "")
         return section(title, [table], width)
     ordered = ordered_jobs(every)
     shown = ordered
     if rows is not None and len(ordered) > rows:
         shown = ordered[: max(1, rows - 1)]
-    lines = [labels]
     for job in shown:
         _, where, held = jobs[job.id]
-        lines.append(
-            [
-                job.id,
-                job.user,
-                job.label,
-                _placement(job, where),
-                DASH if job.pending else job.span,
-                f"{held}" if held else DASH,
-            ]
-        )
-    right_align(lines, (4, 5))
-    # The last column ends on the page's right edge, as the card bars do.
-    for cells in lines:
-        cells[5] = cells[5].rjust(tile_content(width))
-    head(table, lines[0])
-    for job, cells in zip(shown, lines[1:], strict=True):
         colour = (
             "dim"
             if job.pending
             else {"A": "green", "B": "cyan"}.get(job.group or "", "default")
+        )
+        cells = (
+            job.id,
+            job.user,
+            job.label,
+            _placement(job, where),
+            DASH if job.pending else job.span,
+            f"{held}" if held else DASH,
         )
         table.add_row(*[f"[{colour}]{escape(cell)}[/]" for cell in cells])
     rest = ordered[len(shown) :]
     if rest:
         pending = sum(1 for job in rest if job.pending)
         table.add_row(
-            f"[dim]+{len(rest)} more[/]", "", f"[dim]{pending} of them pending[/]"
+            f"[dim]+{len(rest)} more[/]",
+            "",
+            f"[dim]{pending} of them pending[/]",
+            "",
+            "",
+            "",
         )
     return section(title, [table], width)
 

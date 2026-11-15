@@ -7,11 +7,11 @@ deepseek-v4.1-flash  gpu-0001:18812          4.0          0        402      38.0
 glm-5.3              b300-0001:18814         2.0          1        210      33.0       1.6         9        93
 
 lane deepseek-v4.1-flash · 4×H200 · gpu-0003 · 262k ctx                      DeepSeek-V4.1-Flash-1017@1bae0e10
-in use           queue         held          tok/s        /stream       prefill/s    ttft s      
-4/12             0             0             812          41.0          2.69k        0.6         
+live             in use          queue           held          tok/s       /stream     prefill/s        ttft s
+                   4/12              0              0            812          41.0         2.69k           0.6
 
-kv pool          host tier     cache hit     mean ctx     max reqs      preempted  
-█░░░░░ 21%       ██████ 99%    ██████ 95%    144k         20            0          
+memory          kv pool %      host tier %      cache hit %         mean ctx         max reqs        preempted
+             ██░░░░░░░ 21     █████████ 99     █████████ 95             144k               20                0
 
 accounts 5m
 account               sessions            runs          in use         per run          wait s         share %
@@ -30,8 +30,8 @@ gpu-0003:18810   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▅▆▇▅▄
 b300-0001:18814  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁ ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂      32       0       0       0
 
 ledger
-period           model                       tok in       tok out       util         cost $        covered    
-1 hour           deepseek-v4.1-flash           232M         1.15M       ██████ 97%     7.45        full       
-1 hour           glm-5.3                       232M         1.15M       ██████ 97%     7.45        full       
-1 day            deepseek-v4.1-flash          3.31G         18.2M       ██████ 96%   131.02        12h        
-1 day            glm-5.3                      3.31G         18.2M       ██████ 96%   131.02        12h        
+period   model                       tok in      cached %       tok out       util %       cost $      covered
+1 hour   deepseek-v4.1-flash           232M      █████ 98         1.15M     █████ 97         7.45         full
+1 hour   glm-5.3                       232M      █████ 98         1.15M     █████ 97         7.45         full
+1 day    deepseek-v4.1-flash          3.31G      █████ 96         18.2M     █████ 96       131.02          12h
+1 day    glm-5.3                      3.31G      █████ 96         18.2M     █████ 96       131.02          12h

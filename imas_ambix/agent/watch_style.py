@@ -4,14 +4,10 @@
 moving between them finds one layout: a single column as wide as the page,
 which stops at :data:`MAX_WIDTH` however wide the terminal is,
 made of sections. A section is a bold title on a line of its own, its table
-beneath, and a blank line after it; nothing is framed or ruled.
-
-Two kinds of table are drawn. A tile table (:func:`tile_table`) starts its
-columns on the page's eight tiles, left-aligned, so a label stands directly
-over its figure, every section shares one set of column positions, and only a
-table that covers all the tiles reaches the right edge. A flex table
-(:func:`flex_table`) has fixed-width naming columns and right-aligned figure
-columns that share the remaining width.
+beneath, and a blank line after it; nothing is framed or ruled. A table has
+fixed-width naming columns on the left and figure columns that share the
+remaining width evenly, right-aligned, so the last figure always sits against
+the page's right edge and every figure has clear space to its left.
 """
 
 from __future__ import annotations
@@ -27,8 +23,8 @@ __all__ = [
     "DASH", "DEFAULT_WIDTH", "MAX_WIDTH", "NARROW_WIDTH", "WIDTHS",
     "blank", "cell", "flex_table", "fmt_count", "fmt_ctx", "fmt_rate",
     "fmt_span", "fmt_tokens", "fmt_usd", "head", "line_count", "meter",
-    "page", "page_width", "pct", "bar_width", "ramp", "right_align", "section",
-    "spark", "split_line", "tile_bar", "tile_content", "tile_table",
+    "page", "page_width", "pct", "bar_width", "figure_bar", "ramp", "section",
+    "spark", "split_line",
 ]
 
 #: The page width when nothing says how wide the terminal is.
@@ -88,78 +84,15 @@ def flex_table(names: tuple[int, ...], figures: int) -> Table:
     return table
 
 
-#: Tiles across the page. Every table of ``ambix-watch`` and the lane and
-#: ledger of ``llm-watch`` are laid on them, so the page has one set of
-#: column positions.
-TILES = 8
+def figure_bar(width: int, names: int, figures: int) -> int:
+    """Cells a percentage's bar takes in a :func:`flex_table` figure column.
 
-
-def tile_gap(width: int) -> int:
-    """Blank cells that open every tile after the first."""
-    return 2 if width >= NARROW_WIDTH else 1
-
-
-def tile_cells(width: int) -> list[int]:
-    """The cells each tile takes on a page ``width`` wide, gap included.
-
-    Tiles are read in pairs, because a bar takes two: the three pairs after
-    the first are identical, so three bars side by side are the same length,
-    and the first pair takes the cells that do not divide.
+    The bar grows with its column, which is the page less the naming columns
+    shared among the figures, and leaves room for the figure after it and
+    clear space before the next column.
     """
-    tile, spare = divmod(width, TILES)
-    pair = [tile + (1 if spare >= 3 else 0), tile]
-    first = width - 3 * sum(pair)
-    return [first - first // 2, first // 2, *pair * 3]
-
-
-def tile_content(width: int, span: int = 1) -> int:
-    """Cells a column of ``span`` tiles holds, for the narrowest such column."""
-    pair = tile_cells(width)[2:4]
-    cells = (span // 2) * sum(pair) + (span % 2) * pair[1]
-    return cells - tile_gap(width)
-
-
-def tile_bar(width: int) -> int:
-    """Cells a percentage's bar takes in one tile, leaving room for ``100%``."""
-    return max(3, min(8, tile_content(width) - 5))
-
-
-def tile_table(width: int, spans: tuple[int, ...]) -> Table:
-    """A borderless table whose columns start on the page's tiles.
-
-    ``spans`` is the tiles each column covers, left to right from the page's
-    left edge; they need not use every tile. Every column is left-aligned, so
-    a label stands directly over its figure and the distance from one column
-    to the next is the same in every section. Nothing is stretched to fill
-    the page: a table that covers all the tiles ends on its right edge, and
-    one that covers fewer stops short.
-    """
-    if sum(spans) > TILES:
-        raise ValueError(f"spans {spans} cover more than {TILES} tiles")
-    cells = tile_cells(width)
-    gap = tile_gap(width)
-    table = Table(box=None, padding=(0, 0, 0, gap), pad_edge=False,
-                  show_header=False)
-    start = 0
-    for span in spans:
-        taken = sum(cells[start:start + span])
-        table.add_column("", width=taken - (gap if start else 0), no_wrap=True,
-                         overflow="ellipsis")
-        start += span
-    return table
-
-
-def right_align(rows: list[list[str]], columns: tuple[int, ...]) -> None:
-    """Pad plain text in ``columns`` so each column's rows end together.
-
-    For the figures of a table with several rows, labels included: the
-    column stays left-aligned on its tile, and within it the digits line up
-    on the right, under the end of their label.
-    """
-    for column in columns:
-        widest = max(len(row[column]) for row in rows)
-        for row in rows:
-            row[column] = row[column].rjust(widest)
+    column = (width - names) // figures - 1
+    return max(4, min(14, column - 7))
 
 
 def head(table: Table, labels: list[str]) -> None:

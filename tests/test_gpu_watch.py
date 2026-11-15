@@ -177,7 +177,8 @@ def _figures(line: str) -> list[str]:
 
 
 def _row(lines: list[str], name: str) -> str:
-    return next(line for line in lines if line.startswith(name))
+    """The first line that starts with *name*, whatever it is set in by."""
+    return next(line for line in lines if line.lstrip().startswith(name))
 
 
 def _titles(lines: list[str]) -> list[str]:
@@ -204,7 +205,7 @@ def test_a_card_row_is_utilisation_now_its_mean_and_memory():
         "30s",
         "memory",
     ]
-    assert not any(line.startswith("gpu 4 ") for line in lines)
+    assert not any(line.lstrip().startswith("gpu 4 ") for line in lines)
     assert _figures(_row(lines, "gpu 4-7")) == [
         "gpu",
         "4-7",
@@ -258,8 +259,8 @@ def test_a_lone_lane_is_titled_with_its_model_and_nothing_the_cards_say():
 
 def test_a_lane_is_one_row_of_use_queues_and_rates():
     lines = _page([_h200()])
-    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
-    assert lines[at].split() == [
+    at = next(i for i, line in enumerate(lines) if line.startswith("live"))
+    assert lines[at].split()[1:] == [
         "in",
         "use",
         "queue",
@@ -482,7 +483,7 @@ def test_cards_are_averaged_within_a_job_and_never_across_jobs():
         "96%",
         "78%",
     ]
-    assert not any(line.startswith("gpu 2 4-7") for line in folded)
+    assert not any(line.lstrip().startswith("gpu 2 4-7") for line in folded)
     assert not any(line.startswith(("mean", "gpu 4 ")) for line in _page([reading]))
 
 
@@ -509,34 +510,26 @@ def _coloured(renderable: object, width: int = NARROW) -> str:
     return capture.get()
 
 
-def _starts(line: str) -> list[int]:
-    """The column each word of *line* starts on."""
-    return [
-        at
-        for at, char in enumerate(line)
-        if char != " " and (at == 0 or line[at - 1] == " ")
-    ]
-
-
 @pytest.mark.parametrize("width", [80, NARROW, 110])
-def test_the_page_has_one_set_of_column_positions(width):
-    """Every section starts its columns on the same tiles, labels over figures."""
+def test_every_table_ends_on_the_page_s_right_edge(width):
+    """The bars fill their columns, and every figure row ends flush right."""
     lines = _page([_h200(), _b300()], engines=2, width=width)
-    # The bars and the queue fill the page; nothing is two cells short.
-    assert len(_row(lines, "gpu 4-7")) == width
-    assert len(_row(lines, "100 ")) == width
-    # A lane figure stands directly under its label.
-    at = lines.index(_row(lines, "in use"))
-    figures = _starts(lines[at + 1])
-    labels = _starts(lines[at].replace("in use", "in_use").replace("ttft s", "ttft_s"))
-    assert figures == labels
-    # The bars start where the lane's third, fifth and seventh figures do, and
-    # the queue's name and server columns start with the first two of those.
-    heads = _row(lines, "card").replace("util now", "util_now")
-    bars = _starts(heads.replace("util 30s", "util_30s"))[1:]
-    assert bars == [labels[2], labels[4], labels[6]]
-    queue = _starts(_row(lines, "job"))
-    assert queue[:4] == [labels[0], labels[1], labels[2], labels[4]]
+    at = lines.index(_row(lines, "live"))
+    for line in (
+        _row(lines, "gpu 4-7"),
+        lines[at + 1],
+        _row(lines, "1 hour"),
+        _row(lines, "100 "),
+    ):
+        assert len(line) == width, line
+
+
+def test_card_rows_are_set_in_from_their_server_s_title():
+    lines = _page([_h200()])
+    at = lines.index(_row(lines, "gpu-0003"))
+    assert lines[at + 1].startswith("  card")
+    assert all(line.startswith("  ") for line in lines[at + 1 : at + 5])
+    assert not _row(lines, "lane").startswith(" ")
 
 
 def test_a_pending_job_shows_why_it_waits_where_a_running_one_shows_its_server():
