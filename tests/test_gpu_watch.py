@@ -595,5 +595,5 @@ def test_the_work_lined_up_is_one_band_under_the_first_lane():
     assert len(bands) == 1
     first, second = (at for at, line in enumerate(lines) if line.startswith("lane"))
     assert first < bands[0] < second
-    assert lines[bands[0] + 1].split() == ["17", "32", "7", "42", "—", "9h"]
+    assert lines[bands[0] + 1].split() == ["17", "32", "7", "42", "74", "9h"]
     assert all(len(line) <= WIDE for line in lines)

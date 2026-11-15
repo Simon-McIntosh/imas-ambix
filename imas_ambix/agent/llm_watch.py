@@ -454,7 +454,7 @@ def queue_band(queue: dict[str, Any], lane: dict[str, Any]) -> Table:
             backlog_count(_number(queue, "ready"), slots),
             fmt_count(queue.get("paused")),
             fmt_count(queue.get("waiting")),
-            fmt_count(lane.get("worker_slots")),
+            fmt_count(_number(lane.get("worker_slots") or {}, "worker_slots")),
             "",
             fmt_span(queue.get("oldest_ready_seconds")),
         ],
