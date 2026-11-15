@@ -357,13 +357,22 @@ def alarm_count(value: float | None) -> str:
     return f"[red]{value:.0f}[/]" if value >= 1 else f"[dim]{value:.0f}[/]"
 
 
+def backlog_count(value: float | None) -> str:
+    """A queue at the gate: work waiting is what keeps the cards full."""
+    if value is None:
+        return DASH
+    return f"[green]{value:.0f}[/]" if value >= 1 else f"[dim]{value:.0f}[/]"
+
+
 def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
     """The lane's one row of live figures: its use, its queues and its rates.
 
     ``in use`` is the requests generating now over the gate's width in force:
-    what the lane is carrying, never below zero and never above the width.
-    ``queue`` is the requests the gate is holding back, which have reached no
-    card, and ``held`` the requests the gate admitted that the engine has not
+    what the lane is carrying, never below zero and never above the width. It
+    is coloured as a utilisation, green when the gate is full. ``queue`` is
+    the requests the gate is holding back, which have reached no card: it is
+    green when anything waits, because a backlog is what keeps the lane full.
+    ``held`` the requests the gate admitted that the engine has not
     scheduled, which is zero in ordinary running and the first sign the
     engine, and not the gate, is the limit. The lane document's ``headroom``
     is drawn nowhere, because it subtracts the queue from the room and so
@@ -380,8 +389,7 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
         + "/"
         + (f"{width:.0f}" if width is not None else DASH)
     )
-    full = in_flight is not None and width is not None and in_flight >= width
-    waiting = (_number(gate, "waiting") or 0.0) >= 1
+    share = 100.0 * in_flight / width if in_flight is not None and width else None
     measured = live.get("state") == "measured"
     aggregate = _number(live, "generation_toks_per_s")
     per_stream = _number(live, "per_stream_toks_per_s")
@@ -391,8 +399,9 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
         "LIVE",
         ["in use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
         [
-            f"[bold yellow]{in_use}[/]" if full and waiting else f"[bold]{in_use}[/]",
-            alarm_count(_number(gate, "waiting")),
+            (f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
+             else f"[bold]{in_use}[/]"),
+            backlog_count(_number(gate, "waiting")),
             alarm_count(_number(live, "engine_queue")),
             (f"[bold]{fmt_rate(aggregate)}[/]" if measured and aggregate
              else DASH),
@@ -664,7 +673,7 @@ def engines_table(
             escape(str(entry.get("model") or DASH)),
             _engine_display(entry.get("engine") or entry.get("engine_id")),
             f"[cyan]{running:.1f}[/]" if running is not None else DASH,
-            alarm_count(_number(entry, "router_q")),
+            backlog_count(_number(entry, "router_q")),
             fmt_rate(_number(entry, "tok_s")),
             f"{per_stream:.1f}" if per_stream is not None else DASH,
             *(() if narrow else (

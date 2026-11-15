@@ -508,6 +508,24 @@ def test_per_worker_cell_takes_the_serve_panels_colour() -> None:
     assert "33" in _cell_colour(at_half, "20.0").split(";")
 
 
+def test_a_full_gate_and_a_waiting_queue_are_both_green() -> None:
+    """A lane is doing well when every slot is taken and more work waits.
+
+    Requests in use are coloured as a utilisation, so a full gate is green and
+    a nearly idle one is red, and a queue at the gate is green because it is
+    what keeps the cards busy.
+    """
+    def gate(in_flight: int, waiting: int) -> dict[str, Any]:
+        return {"router_generation_gate": {
+            "effective_width": 12, "in_flight": in_flight, "waiting": waiting}}
+
+    full = _coloured(lw.serving_band(gate(12, 4), _live()))
+    assert "32" in _cell_colour(full, "12/12").split(";")
+    assert "32" in _cell_colour(full, "4").split(";")
+    idle = _coloured(lw.serving_band(gate(2, 0), _live()))
+    assert "31" in _cell_colour(idle, "2/12").split(";")
+
+
 def test_a_published_lane_document_fills_the_memory_band() -> None:
     """The capacity figures reach the band through the lane block.
 
