@@ -65,8 +65,6 @@ from imas_ambix.agent.registry import _engine_id
 from imas_ambix.agent.watch_style import (
     DASH,
     DEFAULT_WIDTH,
-    GRID_SLOTS,
-    NARROW_WIDTH,
     bar_width,
     cell,
     flex_table,
@@ -75,15 +73,17 @@ from imas_ambix.agent.watch_style import (
     fmt_span,
     fmt_tokens,
     fmt_usd,
-    grid_table,
     head,
     page,
     page_width,
     pct,
     ramp,
+    right_align,
     section,
     spark,
     split_line,
+    tile_bar,
+    tile_table,
 )
 
 if TYPE_CHECKING:
@@ -110,7 +110,6 @@ ENGINE_CELL_WIDTH = 16
 ENGINE_STRIP_WIDTH = 16
 
 #: The naming columns of the other tables.
-BAND_NAME_WIDTH = 8
 ACCOUNT_NAME_WIDTH = 14
 PROJECT_NAME_WIDTH = 20
 PERIOD_WIDTH = 8
@@ -340,22 +339,15 @@ def head_line(document: dict[str, Any]) -> str:
 # ── the lane's bands ──────────────────────────────────────────────────
 
 
-def _band(
-    width: int, lead: tuple[str, str], labels: list[str], values: list[str]
-) -> Table:
-    """One band on the page grid: a row of labels over a row of figures.
+def _band(width: int, labels: list[str], values: list[str]) -> Table:
+    """One band: a row of labels, each directly over its figure.
 
-    ``lead`` is the band's first figure as ``(label, value)``, set in the
-    naming column where a table's row names stand, so the band needs no name
-    of its own. The other figures take the grid's slots from the right, and
-    a band with fewer figures than slots leaves the first slots empty.
+    The figures stand one to a tile from the page's left edge, so a band with
+    fewer figures than another is shorter and the ones they share line up.
     """
-    spare = GRID_SLOTS - len(labels)
-    spans = (*((spare,) if spare else ()), *([1] * len(labels)))
-    table = grid_table(width, spans)
-    pad = [""] if spare else []
-    table.add_row(f"[dim]{lead[0]}[/]", *pad, *[f"[dim]{label}[/]" for label in labels])
-    table.add_row(lead[1], *pad, *values)
+    table = tile_table(width, (1,) * len(labels))
+    head(table, labels)
+    table.add_row(*values)
     return table
 
 
@@ -416,11 +408,10 @@ def serving_band(
     ttft = _number(live, "median_time_to_first_token_s")
     return _band(
         width,
-        ("in use",
-         f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
-         else f"[bold]{in_use}[/]"),
-        ["queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
+        ["in use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
         [
+            (f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
+             else f"[bold]{in_use}[/]"),
             backlog_count(_number(gate, "waiting"), slots),
             alarm_count(_number(live, "engine_queue")),
             (f"[bold]{fmt_rate(aggregate)}[/]" if measured and aggregate
@@ -455,21 +446,20 @@ def memory_band(
     hit = _number(live, "cache_hit_rate")
     measured = live.get("state") == "measured"
     mean_ctx = _number(lane, "mean_context") or _number(lane, "mean_context_instant")
-    bar = bar_width(width)
-    # A narrow page's slots do not hold the percent sign after a label.
-    unit = " %" if width >= NARROW_WIDTH else ""
+    bar = tile_bar(width)
+
+    def level(value: float | None, mode: str) -> str:
+        return f"{pct(value, mode, width=bar)}%" if value is not None else DASH
+
     return _band(
         width,
-        (f"kv pool{unit}",
-         pct(pool * 100.0 if pool <= 1.0 else pool, width=bar)
-         if pool is not None else DASH),
-        [f"host tier{unit}", f"cache hit{unit}", "mean ctx", "max reqs",
+        ["kv pool", "host tier", "cache hit", "mean ctx", "max reqs",
          "preempted"],
         [
-            (pct(host_tier * 100.0, "plain", width=bar)
-             if host_tier is not None else DASH),
-            (pct(100.0 * hit, "good", width=bar)
-             if measured and hit is not None else DASH),
+            level(None if pool is None else pool * 100.0 if pool <= 1.0 else pool,
+                  "fill"),
+            level(None if host_tier is None else host_tier * 100.0, "plain"),
+            level(100.0 * hit if measured and hit is not None else None, "good"),
             fmt_ctx(mean_ctx),
             cell(_number(lane, "concurrent_requests"), 1.0, 1.0),
             cell(_number(lane, "preemptions"), 0.0, 0.0, inverted=True),
@@ -1086,9 +1076,10 @@ def ledger_table(
     a column that reads ``full`` on every row says nothing. A ledger of
     several models is one table with a model column, because stacking one
     model's periods under another's would put two rows of one period together
-    with nothing saying which model priced either. A narrow page that needs
+    with nothing saying which model priced either. A ledger that needs
     both extra columns gives up the cached share, which the lane's own cache
-    figure already reports.
+    figure already reports. The token and cost figures are right-aligned
+    under their labels, so a column of them is read by magnitude.
     """
     rows = [row for row in (ledger or []) if isinstance(row, dict)
             and row.get("label")]
@@ -1104,25 +1095,15 @@ def ledger_table(
 
     grouped = len({str(row.get("model")) for row in rows if row.get("model")}) > 1
     partial = not all(covered(row) for row in rows)
-    cached_shown = not (grouped and partial and width < NARROW_WIDTH)
-    bar = bar_width(width)
+    # A model column takes two tiles, which leaves none for the cached share
+    # once a coverage column is drawn as well.
+    cached_shown = not (grouped and partial)
+    bar = tile_bar(width)
     labels = ["period", *(("model",) if grouped else ()),
-              "tok in", *(("cached %",) if cached_shown else ()),
-              "tok out", "util %", "cost $",
+              "tok in", *(("cached",) if cached_shown else ()),
+              "tok out", "util", "cost $",
               *(("covered",) if partial else ())]
-    if grouped:
-        # A model column does not fit the grid's naming column beside the
-        # period, so a ledger of several models keeps columns of its own.
-        table = flex_table((PERIOD_WIDTH, MODEL_WIDTH), len(labels) - 2)
-        spare = []
-    else:
-        figures = len(labels) - 1
-        spare = [""] * (1 if figures < GRID_SLOTS else 0)
-        table = grid_table(
-            width,
-            (*((GRID_SLOTS - figures,) if spare else ()), *([1] * figures)),
-        )
-    head(table, [labels[0], *spare, *labels[1:]])
+    lines = [labels]
     for row in rows:
         tokens_in = float(row.get("tokens_in") or 0.0)
         cached = float(row.get("cached") or 0.0)
@@ -1130,15 +1111,14 @@ def ledger_table(
         cost = row.get("cost")
         cells = [
             str(row.get("label")),
-            *spare,
             *((escape(str(row.get("model") or DASH)),) if grouped else ()),
             fmt_tokens(tokens_in),
-            *(((pct(100.0 * cached / tokens_in, "good", width=bar)
+            *(((f"{pct(100.0 * cached / tokens_in, 'good', width=bar)}%"
                 if tokens_in > 0 else DASH),) if cached_shown else ()),
             fmt_tokens(float(row.get("tokens_out") or 0.0)),
             # A lane is paid for whether or not it is used, so a full period is
             # the healthy one.
-            (pct(utilisation, "good", width=bar)
+            (f"{pct(utilisation, 'good', width=bar)}%"
              if utilisation is not None else DASH),
             fmt_usd(cost).lstrip("$") if isinstance(cost, (int, float)) else DASH,
         ]
@@ -1147,6 +1127,15 @@ def ledger_table(
                 "full" if covered(row)
                 else f"[yellow]{fmt_span(float(row.get('covered') or 0.0))}[/]"
             )
+        lines.append(cells)
+    right_align(lines, tuple(
+        labels.index(name) for name in ("tok in", "tok out", "cost $")
+    ))
+    table = tile_table(
+        width, tuple(2 if name == "model" else 1 for name in labels)
+    )
+    head(table, lines[0])
+    for cells in lines[1:]:
         table.add_row(*cells)
     parts: list[object] = [table]
     age = _published_age(published_at)

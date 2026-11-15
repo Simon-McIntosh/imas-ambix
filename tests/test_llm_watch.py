@@ -543,18 +543,18 @@ def test_a_published_lane_document_fills_the_memory_band() -> None:
     )
     document = one_engine_fixture()
     document["lane"] = lane
-    row = render(document).split("kv pool %", 1)[1].splitlines()[1]
+    row = render(document).split("kv pool", 1)[1].splitlines()[1]
     # kv pool is the engine's own counter; the three beside it are the lane
     # document's, and the palette never showed values for any of them before.
     assert _cells(row) == [
-        "██░░░░░░", "21", "████████", "100", "████████", "95", "130k", "27", "—",
+        "█░░░░░", "21%", "██████", "100%", "██████", "95%", "130k", "27", "—",
     ]
     # The same render with the copy removed is the state this test exists to
     # catch: every figure the block fails to carry reads as a dash, not a zero.
     for key in ("hicache_host", "mean_context", "concurrent_requests"):
         del lane[key]
-    bare = render(document).split("kv pool %", 1)[1].splitlines()[1]
-    assert _cells(bare) == ["██░░░░░░", "21", "—", "████████", "95", "—", "—", "—"]
+    bare = render(document).split("kv pool", 1)[1].splitlines()[1]
+    assert _cells(bare) == ["█░░░░░", "21%", "—", "██████", "95%", "—", "—", "—"]
 
 
 def test_head_line_names_the_checkpoint_the_served_engine_loaded() -> None:
@@ -1046,7 +1046,7 @@ def test_each_engine_carries_its_own_history_and_outcomes_line() -> None:
 
 def test_the_ledger_is_grouped_by_model_when_it_prices_more_than_one() -> None:
     text = render(three_engine_fixture())
-    head = next(line for line in text.splitlines() if "cached %" in line)
+    head = next(line for line in text.splitlines() if line.startswith("period"))
     assert "model" in head
     priced = [
         line for line in text.splitlines()
@@ -1057,7 +1057,9 @@ def test_the_ledger_is_grouped_by_model_when_it_prices_more_than_one() -> None:
         assert sum(model in line for line in priced) == 2
     # One model's ledger is the table it always was: no model column.
     single = render(one_engine_fixture())
-    single_head = next(line for line in single.splitlines() if "cached %" in line)
+    single_head = next(
+        line for line in single.splitlines() if line.startswith("period")
+    )
     assert "model" not in single_head
 
 

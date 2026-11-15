@@ -15,10 +15,6 @@ reading order:
 Temperature and power are a server's, not a card's, on this page: the hottest
 card and the summed draw sit on the server's title line.
 
-Every table is drawn on the one page grid of
-:func:`imas_ambix.agent.watch_style.grid_table`, so a column edge in the
-card table is a column edge in the lane, the ledger and the queue.
-
 A figure nothing measured is a dash, never a zero.
 """
 
@@ -35,14 +31,15 @@ from imas_ambix.agent.watch_style import (
     DASH,
     DEFAULT_WIDTH,
     fmt_ctx,
-    grid_content,
-    grid_table,
     head,
     line_count,
     meter,
     page,
     ramp,
+    right_align,
     section,
+    tile_content,
+    tile_table,
 )
 
 if TYPE_CHECKING:
@@ -133,13 +130,12 @@ def server_title(reading: Reading) -> str:
 
 
 def bar_cells(width: int) -> int:
-    """Cells a card's bar takes on a page ``width`` wide.
+    """Cells a card's bar takes: two tiles, less the percentage after it.
 
-    A bar and its percentage fill their column but for two cells, which keep
-    one bar clear of the next, so the last percentage ends on the page's
-    right edge.
+    The bar and its percentage fill their column exactly, so the last
+    percentage ends on the page's right edge.
     """
-    return max(6, min(MAX_BAR_CELLS, grid_content(width, 2) - 7))
+    return max(6, tile_content(width, 2) - 5)
 
 
 def _level(value: float | None, cells: int) -> str:
@@ -199,7 +195,7 @@ def server_section(
     right of the title.
     """
     cells = bar_cells(width)
-    table = grid_table(width, (2, 2, 2))
+    table = tile_table(width, (2, 2, 2, 2))
     groups = job_groups(reading)
     head(table, ["card", "util now", f"util {window}s", "memory"])
     read = reading.cards
@@ -345,43 +341,50 @@ def queue_section(
         for job in reading.jobs:
             where = reading.server.name if job.running else ""
             jobs.setdefault(job.id, (job, where, reading.gpus(job)))
-    table = grid_table(width, (2, 2, 1, 1), left=(0, 1))
-    head(table, ["job      user", "name", "server", "elapsed", "cards"])
+    table = tile_table(width, (1, 1, 2, 2, 1, 1))
+    labels = ["job", "user", "name", "server", "elapsed", "cards"]
     every = [job for job, _, _ in jobs.values()]
     running = sum(1 for job in every if job.running)
     waiting = sum(1 for job in every if job.pending)
     title = f"[bold]queue[/]  [dim]{running} running · {waiting} pending[/]"
     if not every:
-        table.add_row("[dim]idle[/]", "", "", "", "")
+        head(table, labels)
+        table.add_row("[dim]idle[/]")
         return section(title, [table], width)
     ordered = ordered_jobs(every)
     shown = ordered
     if rows is not None and len(ordered) > rows:
         shown = ordered[: max(1, rows - 1)]
+    lines = [labels]
     for job in shown:
         _, where, held = jobs[job.id]
+        lines.append(
+            [
+                job.id,
+                job.user,
+                job.label,
+                _placement(job, where),
+                DASH if job.pending else job.span,
+                f"{held}" if held else DASH,
+            ]
+        )
+    right_align(lines, (4, 5))
+    # The last column ends on the page's right edge, as the card bars do.
+    for cells in lines:
+        cells[5] = cells[5].rjust(tile_content(width))
+    head(table, lines[0])
+    for job, cells in zip(shown, lines[1:], strict=True):
         colour = (
             "dim"
             if job.pending
             else {"A": "green", "B": "cyan"}.get(job.group or "", "default")
-        )
-        cells = (
-            f"{job.id:<8} {job.user}",
-            job.label,
-            _placement(job, where),
-            DASH if job.pending else job.span,
-            f"{held}" if held else DASH,
         )
         table.add_row(*[f"[{colour}]{escape(cell)}[/]" for cell in cells])
     rest = ordered[len(shown) :]
     if rest:
         pending = sum(1 for job in rest if job.pending)
         table.add_row(
-            f"[dim]+{len(rest)} more[/]",
-            f"[dim]{pending} of them pending[/]",
-            "",
-            "",
-            "",
+            f"[dim]+{len(rest)} more[/]", "", f"[dim]{pending} of them pending[/]"
         )
     return section(title, [table], width)
 

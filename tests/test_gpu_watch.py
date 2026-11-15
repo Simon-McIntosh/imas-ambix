@@ -509,12 +509,34 @@ def _coloured(renderable: object, width: int = NARROW) -> str:
     return capture.get()
 
 
+def _starts(line: str) -> list[int]:
+    """The column each word of *line* starts on."""
+    return [
+        at
+        for at, char in enumerate(line)
+        if char != " " and (at == 0 or line[at - 1] == " ")
+    ]
+
+
 @pytest.mark.parametrize("width", [80, NARROW, 110])
-def test_every_section_ends_its_last_column_on_the_page_s_right_edge(width):
-    """One grid for the whole page: bars, lane, ledger and queue share an edge."""
+def test_the_page_has_one_set_of_column_positions(width):
+    """Every section starts its columns on the same tiles, labels over figures."""
     lines = _page([_h200(), _b300()], engines=2, width=width)
-    for name in ("gpu 4-7", "host", "7/16", "1 hour", "100 "):
-        assert len(_row(lines, name)) == width, name
+    # The bars and the queue fill the page; nothing is two cells short.
+    assert len(_row(lines, "gpu 4-7")) == width
+    assert len(_row(lines, "100 ")) == width
+    # A lane figure stands directly under its label.
+    at = lines.index(_row(lines, "in use"))
+    figures = _starts(lines[at + 1])
+    labels = _starts(lines[at].replace("in use", "in_use").replace("ttft s", "ttft_s"))
+    assert figures == labels
+    # The bars start where the lane's third, fifth and seventh figures do, and
+    # the queue's name and server columns start with the first two of those.
+    heads = _row(lines, "card").replace("util now", "util_now")
+    bars = _starts(heads.replace("util 30s", "util_30s"))[1:]
+    assert bars == [labels[2], labels[4], labels[6]]
+    queue = _starts(_row(lines, "job"))
+    assert queue[:4] == [labels[0], labels[1], labels[2], labels[4]]
 
 
 def test_a_pending_job_shows_why_it_waits_where_a_running_one_shows_its_server():
