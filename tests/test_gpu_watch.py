@@ -183,7 +183,7 @@ def _row(lines: list[str], name: str) -> str:
 
 def _titles(lines: list[str]) -> list[str]:
     """The first word of every section's title line, in order."""
-    names = ("gpu-", "lane", "ledger", "queue", "servers")
+    names = ("gpu-", "lane", "ledger", "slurm", "servers")
     return [line.split()[0] for line in lines if line.startswith(names)]
 
 
@@ -192,7 +192,7 @@ def test_the_page_is_one_unframed_column_that_fits_its_width(width):
     lines = _page([_h200(), _b300()], engines=2, width=width)
     assert all(len(line) <= width for line in lines)
     assert not any(mark in line for line in lines for mark in "│╭╰─")
-    assert _titles(lines) == ["gpu-0003", "gpu-0004", "lane", "lane", "ledger", "queue"]
+    assert _titles(lines) == ["gpu-0003", "gpu-0004", "lane", "lane", "ledger", "slurm"]
 
 
 def test_a_card_row_is_utilisation_now_its_mean_and_memory():
@@ -263,7 +263,8 @@ def test_a_lane_is_one_row_of_use_queues_and_rates():
     assert lines[at].split()[1:] == [
         "in",
         "use",
-        "queue",
+        "gate",
+        "wait",
         "held",
         "tok/s",
         "/stream",
@@ -284,7 +285,7 @@ def test_a_terminal_wider_than_the_page_does_not_stretch_it():
 
 def test_two_servers_share_one_queue_that_names_each_job_s_server():
     lines = _page([_h200(), _b300()], engines=2)
-    assert "queue  3 running · 0 pending" in lines
+    assert "slurm  3 running · 0 pending" in lines
     assert "server" in _row(lines, "job")
     assert "gpu-0004" in _row(lines, "300")
 
@@ -405,7 +406,7 @@ def test_cards_asked_for_per_job_are_counted_from_the_job_detail():
     assert reading.gpus(waiting) == 2
     queue = _lines(Group(*panels.queue_section([reading], NARROW)))
     assert _row(queue, "1308599").endswith("2")
-    assert "queue  4 running · 1 pending" in queue
+    assert "slurm  4 running · 1 pending" in queue
 
 
 def test_a_sampler_joins_each_job_with_cards_and_one_job_on_a_bare_server(
@@ -578,3 +579,21 @@ def test_the_cards_allocated_are_green_only_when_the_server_is_full():
     )
     full = _coloured(Group(*panels.server_section(reading, WINDOW, NARROW)))
     assert "\x1b[32m8/8\x1b[0m" in full
+
+
+def test_the_work_lined_up_is_one_band_under_the_first_lane():
+    document = _document(2, False)
+    document["queue"] = {
+        "workers": 17,
+        "ready": 32,
+        "blocked": 42,
+        "paused": 7,
+        "oldest_ready_seconds": 32400.0,
+    }
+    lines = _lines(app.render([_h200(), _b300()], document, WINDOW, (WIDE, 0)), WIDE)
+    bands = [at for at, line in enumerate(lines) if line.startswith("queue")]
+    assert len(bands) == 1
+    first, second = (at for at, line in enumerate(lines) if line.startswith("lane"))
+    assert first < bands[0] < second
+    assert lines[bands[0] + 1].split() == ["17", "32", "42", "7", "9h"]
+    assert all(len(line) <= WIDE for line in lines)

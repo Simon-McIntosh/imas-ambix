@@ -625,8 +625,12 @@ def test_document_build_reads_the_endpoint_document_the_site_declares(
     record = tmp_path / "requests"
     record.mkdir()
     document = lw.build_document(
-        record_dir=record, lane_path=tmp_path / "lane.json", watch_path=watch
+        record_dir=record,
+        lane_path=tmp_path / "lane.json",
+        watch_path=watch,
+        queue_dir=tmp_path / "absent",
     )
+    assert "queue" not in document
     assert document["checkpoints"] == ENDPOINT["checkpoints"]
     assert document["engine"]["endpoints"] == ENDPOINT["endpoints"]
 
@@ -654,7 +658,9 @@ def test_document_build_reads_the_default_published_watch_document(
     record = tmp_path / "requests"
     record.mkdir()
     document = lw.build_document(
-        record_dir=record, lane_path=tmp_path / "lane.json"
+        record_dir=record,
+        lane_path=tmp_path / "lane.json",
+        queue_dir=tmp_path / "absent",
     )
     assert document["ledger"] == LEDGER
     assert document["ledger_published_at"] == "2026-10-27T09:00:00Z"
@@ -730,7 +736,8 @@ def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
     lines = render(one_engine_fixture()).splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("live"))
     assert lines[at].split()[1:] == [
-        "in", "use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft", "s",
+        "in", "use", "gate", "wait", "held",
+        "tok/s", "/stream", "prefill/s", "ttft", "s",
     ]
 
 
@@ -757,7 +764,7 @@ def test_requests_the_engine_holds_are_a_column_beside_the_queue() -> None:
     def queued(document: dict[str, Any]) -> str:
         lines = render(document).splitlines()
         at = next(i for i, line in enumerate(lines) if line.startswith("live"))
-        assert lines[at].split()[4] == "held"
+        assert lines[at].split()[5] == "held"
         return lines[at + 1].split()[2]
 
     document = one_engine_fixture()
@@ -1102,3 +1109,62 @@ def test_main_draws_the_bands_of_the_engine_it_names(
     bands = [line for line in chosen.splitlines() if "b300-0001" in line]
     assert bands, chosen
     assert any("glm-5.3" in line for line in bands)
+
+
+def test_the_queue_band_counts_the_work_lined_up_between_live_and_memory() -> None:
+    """Ready work is green from a gate's width, and blocked work is apart."""
+    document = one_engine_fixture()
+    width = document["lane"]["router_generation_gate"]["effective_width"]
+    document["queue"] = {
+        "workers": 15, "ready": int(width), "blocked": 48, "paused": 7,
+        "oldest_ready_seconds": 131000.0,
+    }
+    lines = render(document).splitlines()
+    names = [line.split()[0] for line in lines if line[:1].islower()]
+    at = names.index("live")
+    assert names[at:at + 3] == ["live", "queue", "memory"]
+    row = next(i for i, line in enumerate(lines) if line.startswith("queue"))
+    assert lines[row].split()[1:] == [
+        "workers", "ready", "blocked", "paused", "oldest", "ready",
+    ]
+    assert lines[row + 1].split() == ["15", f"{width:.0f}", "48", "7", "1d"]
+    band = _coloured(lw.queue_band(document["queue"], document["lane"]))
+    assert "32" in _cell_colour(band, f"{width:.0f}").split(";")
+    document["queue"]["ready"] = 1
+    thin = _coloured(lw.queue_band(document["queue"], document["lane"]))
+    assert "31" in _cell_colour(thin, "1").split(";")
+
+
+def test_a_document_without_a_queue_draws_no_queue_band() -> None:
+    lines = render(one_engine_fixture()).splitlines()
+    assert not any(line.startswith("queue") for line in lines)
+
+
+def test_the_work_queue_counts_local_requests_by_what_they_wait_for(tmp_path) -> None:
+    import datetime as dt
+
+    from imas_ambix.agent import work_queue
+
+    pointers = [
+        {"phase": "working", "local": True},
+        {"phase": "starting", "backend": "omp-local"},
+        {"phase": "working", "local": False, "backend": "codex"},
+        {"phase": "queued", "local": True, "queued_at": "2026-11-15T10:00:00Z"},
+        {"phase": "queued", "local": True, "queued_at": "2026-11-15T11:30:00Z"},
+        {"phase": "queued", "local": True, "queue_hold": {"reason": "lead"}},
+        {"phase": "queued", "local": False, "backend": "codex"},
+        {"phase": "awaiting-upstream", "local": True},
+        {"phase": "held", "local": True},
+        {"phase": "complete", "local": True},
+    ]
+    for at, pointer in enumerate(pointers):
+        (tmp_path / f"r-{at}.json").write_text(json.dumps(pointer), encoding="utf-8")
+    (tmp_path / "r-torn.json").write_text("{", encoding="utf-8")
+    now = dt.datetime(2026, 11, 15, 12, 0, tzinfo=dt.UTC)
+    assert work_queue.read(tmp_path, now) == {
+        "workers": 2, "ready": 2, "blocked": 1, "paused": 2,
+        "oldest_ready_seconds": 7200.0,
+    }
+    (tmp_path / "r-3.json").unlink()
+    assert work_queue.read(tmp_path, now)["oldest_ready_seconds"] == 1800.0
+    assert work_queue.read(tmp_path / "absent") is None

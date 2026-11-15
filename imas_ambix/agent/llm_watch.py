@@ -13,10 +13,11 @@ order a reader asks about a lane:
 ===========  ==========================================================
 section      answers
 ===========  ==========================================================
-lane         two bands. live: requests in use on the cards, the queue
-             held back from them, the aggregate and per-stream rates,
-             the prefill rate and the time to a first token. memory:
-             whether memory is the limit
+lane         three bands. live: requests in use on the cards, those
+             waiting at the gate, the aggregate and per-stream rates,
+             the prefill rate and the time to a first token. queue:
+             the work lined up for the lane, launched and not yet
+             launched. memory: whether memory is the limit
 accounts     who is using the lane
 projects     what one account is running on it
 activity     how the last half hour went, and how requests ended
@@ -60,7 +61,7 @@ from rich.markup import escape
 from rich.text import Text
 
 from imas_ambix.agent import watch as watch_mod
-from imas_ambix.agent import watch_publish
+from imas_ambix.agent import watch_publish, work_queue
 from imas_ambix.agent.registry import _engine_id
 from imas_ambix.agent.watch_style import (
     DASH,
@@ -70,6 +71,7 @@ from imas_ambix.agent.watch_style import (
     cell,
     figure_bar,
     flex_table,
+    fmt_count,
     fmt_ctx,
     fmt_rate,
     fmt_span,
@@ -379,10 +381,12 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
 
     ``in use`` is the requests generating now over the gate's width in force:
     what the lane is carrying, never below zero and never above the width. It
-    is coloured as a utilisation, green when the gate is full. ``queue`` is
-    the requests the gate is holding back, which have reached no card: it is
-    green once at least a gate's width of requests wait, because a backlog is
-    what keeps the lane full. ``held`` is the requests the gate admitted
+    is coloured as a utilisation, green when the gate is full. ``gate wait``
+    is the requests the gate is holding back, which have reached no card.
+    They come from workers already running and wait seconds, so the figure
+    says how hard the gate is pressed and not how much work is lined up: that
+    is the queue band. It is green once at least a gate's width of requests
+    wait. ``held`` is the requests the gate admitted
     that the engine has not scheduled, which is zero in ordinary running and
     the first sign the engine, and not the gate, is the limit. The lane
     document's ``headroom`` is drawn nowhere, because it subtracts the queue
@@ -408,7 +412,7 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
     ttft = _number(live, "median_time_to_first_token_s")
     return _band(
         "live",
-        ["in use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
+        ["in use", "gate wait", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
         [
             (f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
              else f"[bold]{in_use}[/]"),
@@ -422,6 +426,31 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
             (f"[bold]{fmt_rate(prefill)}[/]"
              if measured and prefill is not None else DASH),
             f"{ttft:.1f}" if measured and ttft is not None else DASH,
+        ],
+    )
+
+
+def queue_band(queue: dict[str, Any], lane: dict[str, Any]) -> Table:
+    """The work lined up for the lane: launched, ready, and not yet ready.
+
+    ``workers`` are runs launched and still going; each holds a gate slot only
+    while it generates, so they outnumber the requests in use. ``ready`` are
+    requests waiting only for a worker slot, and they are what keeps the cards
+    full: green from a gate's width of them, yellow from half, red below.
+    ``blocked`` wait on a plan section that has not landed, ``paused`` are set
+    aside by a decision or a failed launch, and ``oldest ready`` is how long
+    the longest-waiting ready request has queued.
+    """
+    slots = _number(lane.get("router_generation_gate") or {}, "effective_width")
+    return _band(
+        "queue",
+        ["workers", "ready", "blocked", "paused", "oldest ready"],
+        [
+            fmt_count(queue.get("workers")),
+            backlog_count(_number(queue, "ready"), slots),
+            fmt_count(queue.get("blocked")),
+            fmt_count(queue.get("paused")),
+            fmt_span(queue.get("oldest_ready_seconds")),
         ],
     )
 
@@ -470,13 +499,16 @@ def bands(
     document: dict[str, Any], *, capacity: bool = True,
     width: int = DEFAULT_WIDTH,
 ) -> list[object]:
-    """The bands in reading order: the live figures, then memory.
+    """The bands in reading order: the live figures, the queue, then memory.
+
+    The queue band is drawn when the document carries the dispatcher's count
+    of the work lined up for the lane.
 
     When the live entry is unavailable its figures are dashes and one line
     names the reason: a zero is a measurement the record never made. The
-    requests in use, the queue and the memory figures are read from the lane document, a
-    different published source, so those still appear when the receipt tail
-    cannot be read.
+    requests in use, the gate's wait and the memory figures are read from the
+    lane document, a different published source, so those still appear when
+    the receipt tail cannot be read.
     """
     live = document.get("live") or {}
     lane = document.get("lane") or {}
@@ -487,6 +519,9 @@ def bands(
             f"[yellow]live entry unavailable[/]"
             f"[dim] — {escape(str(reason))}[/]"
         ))
+    queue = document.get("queue")
+    if isinstance(queue, dict):
+        parts += [Text(""), queue_band(queue, lane)]
     if capacity:
         parts += [Text(""), memory_band(lane, live, width)]
     return parts
@@ -1147,6 +1182,7 @@ def build_document(
     lane_path: str | Path | None = None,
     endpoints_path: str | Path | None = None,
     watch_path: str | Path | None = None,
+    queue_dir: str | Path | None = None,
     now: Any = None,
 ) -> dict[str, Any]:
     """The view's whole input: the live document, the ledger, the endpoint.
@@ -1170,6 +1206,9 @@ def build_document(
     published = _read_json(watch_path or watch_publish.default_output_path()) or {}
     document["ledger"] = published.get("ledger") or []
     document["ledger_published_at"] = published.get("published_at")
+    queue = work_queue.read(queue_dir)
+    if queue is not None:
+        document["queue"] = queue
     return document
 
 

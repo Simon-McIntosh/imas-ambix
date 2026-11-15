@@ -105,6 +105,7 @@ def render(
         footer="[dim]q quit[/]" if keys else "",
         reason="" if document else reason,
         width=page_width(size[0] if size else None),
+        work=(document or {}).get("queue"),
     )
 
 

@@ -271,18 +271,21 @@ def server_section(
 # ── lanes and ledger ─────────────────────────────────────────────────
 
 
-def lane_section(lane: Lane, width: int, where: str = "") -> list[object]:
+def lane_section(
+    lane: Lane, width: int, where: str = "", queue: dict | None = None
+) -> list[object]:
     """One lane as ``llm-watch`` draws it, titled with its model and context.
 
     ``where`` is the server and the cards the lane runs on. It is given only
     when the page draws several lanes, which it tells apart; a lone lane's
-    cards are the row of the card table that carries its job.
+    cards are the row of the card table that carries its job. ``queue`` is
+    the work lined up for the lane, drawn as a band of its own when given.
     """
     facts = [where]
     if lane.context is not None:
         facts.append(f"{fmt_ctx(lane.context)} ctx")
     return llm_watch.lane_section(
-        {"lane": lane.lane, "live": lane.live},
+        {"lane": lane.lane, "live": lane.live, "queue": queue},
         width,
         title=llm_watch.lane_title(lane.model, [fact for fact in facts if fact]),
         note="",
@@ -296,12 +299,18 @@ def no_document(reason: str = "") -> Text:
 
 
 def lane_sections(
-    readings: list[Reading], lanes: list[Lane], width: int, reason: str = ""
+    readings: list[Reading],
+    lanes: list[Lane],
+    width: int,
+    reason: str = "",
+    queue: dict | None = None,
 ) -> list[object]:
     """Every lane; several are each titled with where they are served from.
 
     The cards are read from the server's job that holds the lane, so a lane
-    and the card rows above it can be matched.
+    and the card rows above it can be matched. ``queue`` is the work lined
+    up behind the router that every lane shares, so it is drawn once, under
+    the first lane.
     """
     if not lanes:
         return section("[bold]lane[/]", [no_document(reason)], width)
@@ -319,7 +328,7 @@ def lane_sections(
             f"gpu {ranges(sorted(cards))}" if cards else "",
         ]
         where = " ".join(bit for bit in bits if bit) if len(lanes) > 1 else ""
-        parts += lane_section(lane, width, where)
+        parts += lane_section(lane, width, where, None if parts else queue)
     return parts
 
 
@@ -388,7 +397,7 @@ def queue_section(
     every = [job for job, _, _ in jobs.values()]
     running = sum(1 for job in every if job.running)
     waiting = sum(1 for job in every if job.pending)
-    title = f"[bold]queue[/]  [dim]{running} running · {waiting} pending[/]"
+    title = f"[bold]slurm[/]  [dim]{running} running · {waiting} pending[/]"
     if not every:
         table.add_row("[dim]idle[/]", "", "", "", "", "")
         return section(title, [table], width)
@@ -440,6 +449,7 @@ def view(
     footer: str = "",
     reason: str = "",
     width: int = DEFAULT_WIDTH,
+    work: dict | None = None,
 ) -> Constrain:
     """The whole page: servers, lanes, the ledger, then the queue.
 
@@ -448,7 +458,7 @@ def view(
     left to it. When that is fewer than :data:`MIN_QUEUE_ROWS` for the jobs
     there are, the ledger is left out.
     ``reason`` is why there is no lane document, shown where the lanes would
-    be.
+    be. ``work`` is the dispatcher's count of the work lined up for the lanes.
     """
     tail: list[object] = [Text.from_markup(footer)] if footer else []
     jobs = len({job.id for reading in readings for job in reading.jobs})
@@ -465,7 +475,7 @@ def view(
                 [Text.from_markup("[yellow]no server found[/]")],
                 width,
             )
-        parts += lane_sections(readings, lanes, width, reason)
+        parts += lane_sections(readings, lanes, width, reason, work)
         if with_ledger:
             parts += ledger_section(ledger, published_at, width)
         return parts
