@@ -21,10 +21,11 @@ from rich.text import Text
 from imas_ambix.agent.watch import fmt_span, fmt_tokens, fmt_usd
 
 __all__ = [
-    "DASH", "DEFAULT_WIDTH", "MAX_WIDTH", "NARROW_WIDTH", "WIDTHS",
+    "DASH", "DEFAULT_WIDTH", "GRID_SLOTS", "MAX_WIDTH", "NARROW_WIDTH", "WIDTHS",
     "blank", "cell", "flex_table", "fmt_count", "fmt_ctx", "fmt_rate",
-    "fmt_span", "fmt_tokens", "fmt_usd", "head", "line_count", "meter",
-    "page", "page_width", "pct", "bar_width", "ramp", "section", "spark", "split_line",
+    "fmt_span", "fmt_tokens", "fmt_usd", "grid_content", "grid_table", "head",
+    "line_count", "meter", "name_cells", "page", "page_width", "pct",
+    "bar_width", "ramp", "section", "spark", "split_line",
 ]
 
 #: The page width when nothing says how wide the terminal is.
@@ -81,6 +82,54 @@ def flex_table(names: tuple[int, ...], figures: int) -> Table:
     for _ in range(figures):
         table.add_column("", ratio=1, justify="right", no_wrap=True,
                          overflow="ellipsis")
+    return table
+
+
+#: Figure columns the page grid has to the right of its naming column.
+GRID_SLOTS = 6
+
+
+def _slot(width: int) -> int:
+    """Cells one grid slot takes, its one blank column included."""
+    return (width - (28 if width >= NARROW_WIDTH else 20)) // GRID_SLOTS
+
+
+def name_cells(width: int) -> int:
+    """Cells the grid's naming column takes on a page ``width`` wide.
+
+    The slots are equal, so the naming column takes the cells left over.
+    """
+    return width - GRID_SLOTS * _slot(width)
+
+
+def grid_content(width: int, span: int) -> int:
+    """Cells a column holds when it covers ``span`` slots."""
+    return span * _slot(width) - 1
+
+
+def grid_table(
+    width: int, spans: tuple[int, ...], left: tuple[int, ...] = ()
+) -> Table:
+    """A borderless table on the page grid, shared by every section.
+
+    The grid is one naming column and :data:`GRID_SLOTS` equal slots that
+    together fill a page ``width`` wide. ``spans`` says how many slots each column
+    after the naming one covers, and must add up to the slots, so a column
+    edge in one section is a column edge in every other. Columns are
+    right-aligned, which puts a figure on its slot's right edge, except
+    those whose index is in ``left``.
+    """
+    if sum(spans) != GRID_SLOTS:
+        raise ValueError(f"spans {spans} do not cover {GRID_SLOTS} slots")
+    table = Table(box=None, padding=(0, 0, 0, 1), pad_edge=False,
+                  show_header=False)
+    table.add_column("", width=name_cells(width), no_wrap=True,
+                     overflow="ellipsis")
+    for at, span in enumerate(spans):
+        table.add_column(
+            "", width=grid_content(width, span), no_wrap=True,
+            overflow="ellipsis", justify="left" if at in left else "right",
+        )
     return table
 
 

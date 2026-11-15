@@ -13,14 +13,14 @@ order a reader asks about a lane:
 ===========  ==========================================================
 section      answers
 ===========  ==========================================================
-LANE         two bands. LIVE: requests in use on the cards, the queue
-             held back from them, the aggregate and per-stream rates,
-             the prefill rate and the time to a first token. MEMORY:
-             whether memory is the limit
-ACCOUNTS     who is using the lane
-PROJECTS     what one account is running on it
-ACTIVITY     how the last half hour went, and how requests ended
-LEDGER       what the lane has cost
+lane         two unnamed rows. The first: requests in use on the cards,
+             the queue held back from them, the aggregate and
+             per-stream rates, the prefill rate and the time to a first
+             token. The second: whether memory is the limit
+accounts     who is using the lane
+projects     what one account is running on it
+activity     how the last half hour went, and how requests ended
+ledger       what the lane has cost
 ===========  ==========================================================
 
 The sections and the tables inside them are ``ambix-watch``'s own, and that
@@ -65,6 +65,7 @@ from imas_ambix.agent.registry import _engine_id
 from imas_ambix.agent.watch_style import (
     DASH,
     DEFAULT_WIDTH,
+    GRID_SLOTS,
     NARROW_WIDTH,
     bar_width,
     cell,
@@ -74,6 +75,7 @@ from imas_ambix.agent.watch_style import (
     fmt_span,
     fmt_tokens,
     fmt_usd,
+    grid_table,
     head,
     page,
     page_width,
@@ -319,7 +321,7 @@ def _lane_title(document: dict[str, Any]) -> tuple[str, str]:
 def lane_title(model: str, facts: list[str]) -> str:
     """A lane section's title: the served name, then what it is served on."""
     detail = f" [dim]· {' · '.join(facts)}[/]" if facts else ""
-    return f"[bold]LANE[/]  [bold]{escape(model)}[/]{detail}"
+    return f"[bold]lane {escape(model)}[/]{detail}"
 
 
 def checkpoint_note(checkpoint: str | None) -> str:
@@ -338,15 +340,22 @@ def head_line(document: dict[str, Any]) -> str:
 # ── the lane's bands ──────────────────────────────────────────────────
 
 
-def _band(name: str, labels: list[str], values: list[str]) -> Table:
-    """One named band: a row of labels over a row of figures.
+def _band(
+    width: int, lead: tuple[str, str], labels: list[str], values: list[str]
+) -> Table:
+    """One band on the page grid: a row of labels over a row of figures.
 
-    A band's columns are its own: the live row carries one figure more than
-    the memory row, and each is spread over the page's whole width.
+    ``lead`` is the band's first figure as ``(label, value)``, set in the
+    naming column where a table's row names stand, so the band needs no name
+    of its own. The other figures take the grid's slots from the right, and
+    a band with fewer figures than slots leaves the first slots empty.
     """
-    table = flex_table((BAND_NAME_WIDTH,), len(labels))
-    table.add_row(f"[bold]{name}[/]", *[f"[dim]{label}[/]" for label in labels])
-    table.add_row("", *values)
+    spare = GRID_SLOTS - len(labels)
+    spans = (*((spare,) if spare else ()), *([1] * len(labels)))
+    table = grid_table(width, spans)
+    pad = [""] if spare else []
+    table.add_row(f"[dim]{lead[0]}[/]", *pad, *[f"[dim]{label}[/]" for label in labels])
+    table.add_row(lead[1], *pad, *values)
     return table
 
 
@@ -357,51 +366,62 @@ def alarm_count(value: float | None) -> str:
     return f"[red]{value:.0f}[/]" if value >= 1 else f"[dim]{value:.0f}[/]"
 
 
-def backlog_count(value: float | None) -> str:
-    """A queue at the gate: work waiting is what keeps the cards full."""
+def backlog_count(value: float | None, width: float | None = None) -> str:
+    """A queue at the gate, coloured by how well it keeps the lane fed.
+
+    Work waiting is what keeps the cards full, so the queue is green once it
+    holds at least a gate's width of requests, yellow from half of that, and
+    red below. Without a width to measure against, the count is uncoloured.
+    """
     if value is None:
         return DASH
-    return f"[green]{value:.0f}[/]" if value >= 1 else f"[dim]{value:.0f}[/]"
+    if not width:
+        return f"{value:.0f}"
+    return f"[{ramp(100.0 * value / width, 100.0, 50.0)}]{value:.0f}[/]"
 
 
-def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
+def serving_band(
+    lane: dict[str, Any], live: dict[str, Any], width: int = DEFAULT_WIDTH
+) -> Table:
     """The lane's one row of live figures: its use, its queues and its rates.
 
     ``in use`` is the requests generating now over the gate's width in force:
     what the lane is carrying, never below zero and never above the width. It
     is coloured as a utilisation, green when the gate is full. ``queue`` is
     the requests the gate is holding back, which have reached no card: it is
-    green when anything waits, because a backlog is what keeps the lane full.
-    ``held`` the requests the gate admitted that the engine has not
-    scheduled, which is zero in ordinary running and the first sign the
-    engine, and not the gate, is the limit. The lane document's ``headroom``
-    is drawn nowhere, because it subtracts the queue from the room and so
-    goes negative whenever requests wait. ``tok/s`` is every stream together,
-    ``/stream`` is what one request sees, ``prefill/s`` is prompt tokens
-    read per second and ``ttft s`` the median time to a first token. A figure
-    the receipt record did not measure is a dash.
+    green once at least a gate's width of requests wait, because a backlog is
+    what keeps the lane full. ``held`` is the requests the gate admitted
+    that the engine has not scheduled, which is zero in ordinary running and
+    the first sign the engine, and not the gate, is the limit. The lane
+    document's ``headroom`` is drawn nowhere, because it subtracts the queue
+    from the room and so goes negative whenever requests wait. ``tok/s`` is
+    every stream together, ``/stream`` is what one request sees,
+    ``prefill/s`` is prompt tokens read per second and ``ttft s`` the median
+    time to a first token. A figure the receipt record did not measure is a
+    dash.
     """
     gate = lane.get("router_generation_gate") or {}
-    width = _number(gate, "effective_width")
+    slots = _number(gate, "effective_width")
     in_flight = _number(gate, "in_flight")
     in_use = (
         (f"{in_flight:.0f}" if in_flight is not None else DASH)
         + "/"
-        + (f"{width:.0f}" if width is not None else DASH)
+        + (f"{slots:.0f}" if slots is not None else DASH)
     )
-    share = 100.0 * in_flight / width if in_flight is not None and width else None
+    share = 100.0 * in_flight / slots if in_flight is not None and slots else None
     measured = live.get("state") == "measured"
     aggregate = _number(live, "generation_toks_per_s")
     per_stream = _number(live, "per_stream_toks_per_s")
     prefill = _number(live, "prefill_toks_per_s")
     ttft = _number(live, "median_time_to_first_token_s")
     return _band(
-        "LIVE",
-        ["in use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
+        width,
+        ("in use",
+         f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
+         else f"[bold]{in_use}[/]"),
+        ["queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
         [
-            (f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
-             else f"[bold]{in_use}[/]"),
-            backlog_count(_number(gate, "waiting")),
+            backlog_count(_number(gate, "waiting"), slots),
             alarm_count(_number(live, "engine_queue")),
             (f"[bold]{fmt_rate(aggregate)}[/]" if measured and aggregate
              else DASH),
@@ -436,13 +456,16 @@ def memory_band(
     measured = live.get("state") == "measured"
     mean_ctx = _number(lane, "mean_context") or _number(lane, "mean_context_instant")
     bar = bar_width(width)
+    # A narrow page's slots do not hold the percent sign after a label.
+    unit = " %" if width >= NARROW_WIDTH else ""
     return _band(
-        "MEMORY",
-        ["kv pool %", "host tier %", "cache hit %", "mean ctx", "max reqs",
+        width,
+        (f"kv pool{unit}",
+         pct(pool * 100.0 if pool <= 1.0 else pool, width=bar)
+         if pool is not None else DASH),
+        [f"host tier{unit}", f"cache hit{unit}", "mean ctx", "max reqs",
          "preempted"],
         [
-            (pct(pool * 100.0 if pool <= 1.0 else pool, width=bar)
-             if pool is not None else DASH),
             (pct(host_tier * 100.0, "plain", width=bar)
              if host_tier is not None else DASH),
             (pct(100.0 * hit, "good", width=bar)
@@ -468,7 +491,7 @@ def bands(
     """
     live = document.get("live") or {}
     lane = document.get("lane") or {}
-    parts: list[object] = [serving_band(lane, live)]
+    parts: list[object] = [serving_band(lane, live, width)]
     if live.get("state") != "measured":
         reason = live.get("reason") or "no reading"
         parts.append(Text.from_markup(
@@ -498,7 +521,7 @@ def lane_section(
         title or own_title,
         bands(document, capacity=capacity, width=width),
         width,
-        note=note or own_note,
+        note=own_note if note is None else note,
     )
 
 
@@ -630,7 +653,7 @@ def router_line(document: dict[str, Any], width: int = DEFAULT_WIDTH) -> object:
     stamp = (document.get("lane") or {}).get("observed_at")
     when = stamp[11:19] if isinstance(stamp, str) and len(stamp) >= 19 else ""
     return split_line(
-        "[bold]ROUTER[/]  " + " [dim]·[/] ".join(bits), f"[dim]{when}[/]", width
+        "[bold]router[/]  " + " [dim]·[/] ".join(bits), f"[dim]{when}[/]", width
     )
 
 
@@ -1004,7 +1027,7 @@ def activity_title(callers: dict[str, Any]) -> str:
         _heading(name, (callers.get(key) or {}).get("window_seconds"))
         for name, key in (("strips", "history"), ("counts", "outcomes"))
     ]
-    return f"[bold]ACTIVITY[/]  [dim]{' · '.join(spans)}[/]"
+    return f"[bold]activity[/]  [dim]{' · '.join(spans)}[/]"
 
 
 def activity(
@@ -1087,9 +1110,19 @@ def ledger_table(
               "tok in", *(("cached %",) if cached_shown else ()),
               "tok out", "util %", "cost $",
               *(("covered",) if partial else ())]
-    names = (PERIOD_WIDTH, MODEL_WIDTH) if grouped else (PERIOD_WIDTH,)
-    table = flex_table(names, len(labels) - len(names))
-    head(table, labels)
+    if grouped:
+        # A model column does not fit the grid's naming column beside the
+        # period, so a ledger of several models keeps columns of its own.
+        table = flex_table((PERIOD_WIDTH, MODEL_WIDTH), len(labels) - 2)
+        spare = []
+    else:
+        figures = len(labels) - 1
+        spare = [""] * (1 if figures < GRID_SLOTS else 0)
+        table = grid_table(
+            width,
+            (*((GRID_SLOTS - figures,) if spare else ()), *([1] * figures)),
+        )
+    head(table, [labels[0], *spare, *labels[1:]])
     for row in rows:
         tokens_in = float(row.get("tokens_in") or 0.0)
         cached = float(row.get("cached") or 0.0)
@@ -1097,6 +1130,7 @@ def ledger_table(
         cost = row.get("cost")
         cells = [
             str(row.get("label")),
+            *spare,
             *((escape(str(row.get("model") or DASH)),) if grouped else ()),
             fmt_tokens(tokens_in),
             *(((pct(100.0 * cached / tokens_in, "good", width=bar)
@@ -1209,7 +1243,7 @@ def render(
     if multi:
         parts += [router_line(document, width), Text("")]
         parts += section(
-            "[bold]ENGINES[/]",
+            "[bold]engines[/]",
             [engines_table(document, engine=engine, width=width)], width,
         )
         entry = selected_engine(document, engine)
@@ -1220,11 +1254,11 @@ def render(
     window = callers.get("window_seconds")
     name = account or _viewer()
     parts += section(
-        f"[bold]{_heading('ACCOUNTS', window)}[/]",
+        f"[bold]{_heading('accounts', window)}[/]",
         [accounts_table(callers, account=account, width=width)], width,
     )
     parts += section(
-        f"[bold]{_heading('PROJECTS', window)}[/]  [dim]{escape(name)}[/]",
+        f"[bold]{_heading('projects', window)}[/]  [dim]{escape(name)}[/]",
         [detail_table(callers, account=account, sessions=sessions,
                       engines=multi)], width,
     )
@@ -1233,7 +1267,7 @@ def render(
         activity(callers, scoped.get("lane") or {}, width), width,
     )
     parts += section(
-        "[bold]LEDGER[/]",
+        "[bold]ledger[/]",
         [ledger_table(document.get("ledger"),
                       published_at=document.get("ledger_published_at"),
                       width=width)], width,

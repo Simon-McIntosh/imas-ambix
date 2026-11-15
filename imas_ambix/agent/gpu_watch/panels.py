@@ -5,8 +5,8 @@ a bold title over a table as wide as the terminal; nothing is framed. In
 reading order:
 
 * one section per server: its state and totals on the title line, then one
-  row per card with its utilisation now, its rolling mean and its memory as
-  bars that fill their columns;
+  row per job with its cards' utilisation now, their rolling mean and their
+  memory as bars that fill their columns;
 * one section per lane, which is ``llm-watch``'s own, so a lane here and the
   same lane there are one set of figures drawn one way;
 * the period ledger;
@@ -14,6 +14,10 @@ reading order:
 
 Temperature and power are a server's, not a card's, on this page: the hottest
 card and the summed draw sit on the server's title line.
+
+Every table is drawn on the one page grid of
+:func:`imas_ambix.agent.watch_style.grid_table`, so a column edge in the
+card table is a column edge in the lane, the ledger and the queue.
 
 A figure nothing measured is a dash, never a zero.
 """
@@ -24,15 +28,15 @@ import time
 from typing import TYPE_CHECKING
 
 from rich.markup import escape
-from rich.table import Table
 from rich.text import Text
 
 from imas_ambix.agent import llm_watch
 from imas_ambix.agent.watch_style import (
     DASH,
     DEFAULT_WIDTH,
-    NARROW_WIDTH,
     fmt_ctx,
+    grid_content,
+    grid_table,
     head,
     line_count,
     meter,
@@ -109,7 +113,12 @@ def server_title(reading: Reading) -> str:
     if reading.group:
         bits.append(f"Group {reading.group}")
     if server.cards:
-        bits.append(f"{reading.allocated_count}/{server.cards} cards allocated")
+        # An unallocated card is idle capacity, so only a full server is green.
+        share = 100.0 * reading.allocated_count / server.cards
+        bits.append(
+            f"[{ramp(share, 100.0, 50.0)}]{reading.allocated_count}/"
+            f"{server.cards}[/] cards allocated"
+        )
     elif reading.allocated_count:
         bits.append(f"{reading.allocated_count} cards allocated")
     temps = [card.temp for card in reading.cards if card.temp is not None]
@@ -123,25 +132,28 @@ def server_title(reading: Reading) -> str:
     return " [dim]·[/] ".join(bits)
 
 
-def name_cells(width: int) -> int:
-    """Cells the card column takes: a card range and the job that holds it."""
-    return 28 if width >= NARROW_WIDTH else 20
-
-
-def _card_table(width: int) -> Table:
-    table = Table(
-        box=None, padding=(0, 0, 0, 2), pad_edge=False, show_header=False, expand=True
-    )
-    table.add_column("", width=name_cells(width), no_wrap=True, overflow="ellipsis")
-    for _ in range(3):
-        table.add_column("", ratio=1, no_wrap=True, overflow="ellipsis")
-    return table
-
-
 def bar_cells(width: int) -> int:
-    """Cells a card's bar takes on a page ``width`` wide: most of its column."""
-    column = (width - name_cells(width)) // 3
-    return max(6, min(MAX_BAR_CELLS, column - 10))
+    """Cells a card's bar takes on a page ``width`` wide.
+
+    A bar and its percentage fill their column but for two cells, which keep
+    one bar clear of the next, so the last percentage ends on the page's
+    right edge.
+    """
+    return max(6, min(MAX_BAR_CELLS, grid_content(width, 2) - 7))
+
+
+def _level(value: float | None, cells: int) -> str:
+    """A bar that is green when full, with a red figure when nearly empty.
+
+    An empty bar has no filled cell to carry its colour, so the percentage
+    takes the red: an idle card is the waste, and must not be the quietest
+    row on the page.
+    """
+    text = meter(value, "good", cells)
+    if value is None or ramp(value, 80, 40) != "red":
+        return text
+    bar, _, figure = text.rpartition(" ")
+    return f"{bar} [red]{figure}[/]"
 
 
 def job_groups(reading: Reading) -> list[tuple[str, list[Card]]]:
@@ -180,31 +192,26 @@ def server_section(
 
     A row is three bars: utilisation now, its mean over the window, and
     memory, each averaged over the cards one job holds and never across jobs,
-    with the job named beside its cards. Utilisation is green when busy and
-    red when idle, because an idle card is the waste. Cards another account's
-    job holds cannot be read, so they are named together on one row, and the
-    host's own load closes the table. ``note`` is set at the right of the
-    title.
+    with the job named beside its cards. Every bar is green when full and red
+    when empty, because an idle card is the waste. Cards another account's
+    job holds cannot be read, so they are named together on one row of
+    dashes, and the host's own load closes the table. ``note`` is set at the
+    right of the title.
     """
     cells = bar_cells(width)
-    table = _card_table(width)
+    table = grid_table(width, (2, 2, 2))
     groups = job_groups(reading)
     head(table, ["card", "util now", f"util {window}s", "memory"])
     read = reading.cards
     hidden = reading.unreadable
     if hidden:
-        table.add_row(
-            f"gpu {ranges(hidden)}",
-            "[yellow]another account's[/]",
-            "[dim]not readable[/]",
-            "",
-        )
+        table.add_row(_card_name(hidden, "other accounts"), *[f"[dim]{DASH}[/]"] * 3)
     for job, group in groups:
         table.add_row(
             _card_name([c.index for c in group], job),
-            meter(_mean([c.util for c in group]), "good", cells),
-            meter(_mean([c.util_mean for c in group]), "good", cells),
-            meter(_mean([c.mem for c in group]), "fill", cells),
+            _level(_mean([c.util for c in group]), cells),
+            _level(_mean([c.util_mean for c in group]), cells),
+            _level(_mean([c.mem for c in group]), cells),
         )
     if reading.host is not None:
         cpu, cpu_mean, ram = reading.host
@@ -240,19 +247,20 @@ def server_section(
 
 
 def lane_section(lane: Lane, width: int, where: str = "") -> list[object]:
-    """One lane as ``llm-watch`` draws it, titled with where it is served.
+    """One lane as ``llm-watch`` draws it, titled with its model and context.
 
-    ``where`` is the server and the cards the lane runs on, when the page
-    knows them; without it the lane's own hardware stands there.
+    ``where`` is the server and the cards the lane runs on. It is given only
+    when the page draws several lanes, which it tells apart; a lone lane's
+    cards are the row of the card table that carries its job.
     """
-    facts = [where or lane.hardware or ""]
+    facts = [where]
     if lane.context is not None:
         facts.append(f"{fmt_ctx(lane.context)} ctx")
     return llm_watch.lane_section(
         {"lane": lane.lane, "live": lane.live},
         width,
         title=llm_watch.lane_title(lane.model, [fact for fact in facts if fact]),
-        note=llm_watch.checkpoint_note(lane.checkpoint),
+        note="",
     )
 
 
@@ -265,13 +273,13 @@ def no_document(reason: str = "") -> Text:
 def lane_sections(
     readings: list[Reading], lanes: list[Lane], width: int, reason: str = ""
 ) -> list[object]:
-    """Every lane, each titled with the server and the cards it is served from.
+    """Every lane; several are each titled with where they are served from.
 
     The cards are read from the server's job that holds the lane, so a lane
     and the card rows above it can be matched.
     """
     if not lanes:
-        return section("[bold]LANE[/]", [no_document(reason)], width)
+        return section("[bold]lane[/]", [no_document(reason)], width)
     held = {
         job_id: (reading.server.name, cards)
         for reading in readings
@@ -285,14 +293,15 @@ def lane_sections(
             server if several or not cards else "",
             f"gpu {ranges(sorted(cards))}" if cards else "",
         ]
-        parts += lane_section(lane, width, " ".join(bit for bit in bits if bit))
+        where = " ".join(bit for bit in bits if bit) if len(lanes) > 1 else ""
+        parts += lane_section(lane, width, where)
     return parts
 
 
 def ledger_section(ledger: list | None, published_at: object, width: int) -> list:
     """Tokens and their cost per period, as ``llm-watch`` draws them."""
     return section(
-        "[bold]LEDGER[/]",
+        "[bold]ledger[/]",
         [llm_watch.ledger_table(ledger, published_at=published_at, width=width)],
         width,
     )
@@ -309,6 +318,15 @@ def ordered_jobs(jobs: list[Job]) -> list[Job]:
     )
 
 
+def _placement(job: Job, where: str) -> str:
+    """Where a job runs, or why it does not yet."""
+    if job.pending:
+        return " · ".join(bit for bit in ("pending", job.waits_on) if bit)
+    if job.running:
+        return where or DASH
+    return " · ".join(bit for bit in (where, job.state.lower()) if bit)
+
+
 def queue_section(
     readings: list[Reading], width: int, rows: int | None = None
 ) -> list[object]:
@@ -317,46 +335,24 @@ def queue_section(
     This is where another account's load shows, since its cards cannot be
     read. ``rows`` bounds the table to the lines the screen has left; jobs
     that do not fit are counted on a last line, never cut silently. The title
-    counts the jobs, so the totals are read without counting rows, and a
-    server column appears when more than one server is watched.
+    counts the jobs, so the totals are read without counting rows. The
+    ``server`` column is where a job runs, and for a pending job the
+    scheduler's reason it has not started, as ``squeue`` itself pairs them;
+    a state other than running or pending is named beside the server.
     """
-    several = len(readings) > 1
     jobs: dict[str, tuple[Job, str, int]] = {}
     for reading in readings:
         for job in reading.jobs:
-            where = reading.server.name if job.running or not several else ""
+            where = reading.server.name if job.running else ""
             jobs.setdefault(job.id, (job, where, reading.gpus(job)))
-    table = Table(
-        box=None, padding=(0, 0, 0, 2), pad_edge=False, show_header=False, expand=True
-    )
-    for name_width in (8, 10, 6):
-        table.add_column("", width=name_width, no_wrap=True, overflow="ellipsis")
-    table.add_column("", ratio=1, no_wrap=True, overflow="ellipsis")
-    if several:
-        table.add_column("", width=9, no_wrap=True, overflow="ellipsis")
-    table.add_column("", width=8, no_wrap=True)
-    table.add_column("", width=11, justify="right", no_wrap=True)
-    table.add_column("", width=5, justify="right", no_wrap=True)
-    spare = [""] if several else []
-    head(
-        table,
-        [
-            "job",
-            "user",
-            "acct",
-            "name",
-            *(["server"] if several else []),
-            "state",
-            "elapsed",
-            "cards",
-        ],
-    )
+    table = grid_table(width, (2, 2, 1, 1), left=(0, 1))
+    head(table, ["job      user", "name", "server", "elapsed", "cards"])
     every = [job for job, _, _ in jobs.values()]
     running = sum(1 for job in every if job.running)
     waiting = sum(1 for job in every if job.pending)
-    title = f"[bold]QUEUE[/]  [dim]{running} running · {waiting} pending[/]"
+    title = f"[bold]queue[/]  [dim]{running} running · {waiting} pending[/]"
     if not every:
-        table.add_row("[dim]idle[/]", "", "", "", *spare, "", "", "")
+        table.add_row("[dim]idle[/]", "", "", "", "")
         return section(title, [table], width)
     ordered = ordered_jobs(every)
     shown = ordered
@@ -370,13 +366,10 @@ def queue_section(
             else {"A": "green", "B": "cyan"}.get(job.group or "", "default")
         )
         cells = (
-            job.id,
-            job.user,
-            job.account,
+            f"{job.id:<8} {job.user}",
             job.label,
-            *([where or DASH] if several else []),
-            job.state.lower(),
-            job.elapsed,
+            _placement(job, where),
+            DASH if job.pending else job.span,
             f"{held}" if held else DASH,
         )
         table.add_row(*[f"[{colour}]{escape(cell)}[/]" for cell in cells])
@@ -385,10 +378,7 @@ def queue_section(
         pending = sum(1 for job in rest if job.pending)
         table.add_row(
             f"[dim]+{len(rest)} more[/]",
-            "",
-            "",
             f"[dim]{pending} of them pending[/]",
-            *spare,
             "",
             "",
             "",
@@ -431,7 +421,7 @@ def view(
             parts += server_section(reading, window, width, note="" if at else clock())
         if not readings:
             parts += section(
-                "[bold]SERVERS[/]",
+                "[bold]servers[/]",
                 [Text.from_markup("[yellow]no server found[/]")],
                 width,
             )

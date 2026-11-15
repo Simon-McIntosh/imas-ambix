@@ -440,7 +440,7 @@ def _cells(line: str) -> list[str]:
 
 def _accounts_region(text: str) -> str:
     """The accounts section alone: its title up to the projects title."""
-    return text.split("ACCOUNTS ", 1)[1].split("PROJECTS ", 1)[0]
+    return text.split("accounts ", 1)[1].split("projects ", 1)[0]
 
 
 def _coloured(renderable: Any) -> str:
@@ -508,22 +508,27 @@ def test_per_worker_cell_takes_the_serve_panels_colour() -> None:
     assert "33" in _cell_colour(at_half, "20.0").split(";")
 
 
-def test_a_full_gate_and_a_waiting_queue_are_both_green() -> None:
-    """A lane is doing well when every slot is taken and more work waits.
+def test_a_full_gate_and_a_queue_as_deep_as_the_gate_are_both_green() -> None:
+    """A lane is doing well when every slot is taken and as much work waits.
 
     Requests in use are coloured as a utilisation, so a full gate is green and
-    a nearly idle one is red, and a queue at the gate is green because it is
-    what keeps the cards busy.
+    a nearly idle one is red. The queue is measured against the gate's width:
+    green once at least a width of requests wait, yellow from half a width,
+    and red below, because a deep queue is what keeps the cards busy.
     """
     def gate(in_flight: int, waiting: int) -> dict[str, Any]:
         return {"router_generation_gate": {
             "effective_width": 12, "in_flight": in_flight, "waiting": waiting}}
 
-    full = _coloured(lw.serving_band(gate(12, 4), _live()))
-    assert "32" in _cell_colour(full, "12/12").split(";")
-    assert "32" in _cell_colour(full, "4").split(";")
-    idle = _coloured(lw.serving_band(gate(2, 0), _live()))
-    assert "31" in _cell_colour(idle, "2/12").split(";")
+    def colour(lane: dict[str, Any], figure: str) -> list[str]:
+        band = _coloured(lw.serving_band(lane, _live()))
+        return _cell_colour(band, figure).split(";")
+
+    assert "32" in colour(gate(12, 13), "12/12")
+    assert "32" in colour(gate(12, 13), "13")
+    assert "33" in colour(gate(12, 7), "7")
+    assert "31" in colour(gate(12, 4), "4")
+    assert "31" in colour(gate(2, 0), "2/12")
 
 
 def test_a_published_lane_document_fills_the_memory_band() -> None:
@@ -695,11 +700,10 @@ def test_the_page_is_one_unframed_column_that_fits_every_width() -> None:
         lines = lw.render_text(eight_project_fixture(), width=width).splitlines()
         assert all(len(line) <= width for line in lines)
         assert not any(mark in line for line in lines for mark in "│╭╰")
-        titles = [line.split()[0] for line in lines
-                  if line[:1].isupper() and line.split()[0].isupper()]
+        titles = [line.split()[0] for line in lines if line[:1].islower()]
         assert [t for t in titles if t in
-                ("LANE", "ACCOUNTS", "PROJECTS", "ACTIVITY", "LEDGER")] == [
-            "LANE", "ACCOUNTS", "PROJECTS", "ACTIVITY", "LEDGER"]
+                ("lane", "accounts", "projects", "activity", "ledger")] == [
+            "lane", "accounts", "projects", "activity", "ledger"]
 
 
 def test_no_label_is_cut_at_the_narrowest_page() -> None:
@@ -724,8 +728,8 @@ def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
 
 def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
     lines = render(one_engine_fixture()).splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
-    assert lines[at].split()[1:] == [
+    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
+    assert lines[at].split() == [
         "in", "use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft", "s",
     ]
 
@@ -743,7 +747,7 @@ def test_in_use_is_requests_generating_and_never_the_queue() -> None:
         in_flight=16, effective_width=16, waiting=85
     )
     lines = render(document).splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
+    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
     assert lines[at + 1].split()[0] == "16/16"
     assert lines[at + 1].split()[1] == "85"
     assert "-85" not in "\n".join(lines)
@@ -752,8 +756,8 @@ def test_in_use_is_requests_generating_and_never_the_queue() -> None:
 def test_requests_the_engine_holds_are_a_column_beside_the_queue() -> None:
     def queued(document: dict[str, Any]) -> str:
         lines = render(document).splitlines()
-        at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
-        assert lines[at].split()[4] == "held"
+        at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
+        assert lines[at].split()[3] == "held"
         return lines[at + 1].split()[2]
 
     document = one_engine_fixture()
@@ -793,8 +797,8 @@ def test_accounts_table_reads_the_account_level() -> None:
     # restates, so a document with a different window heads itself differently.
     wider = eight_project_fixture()
     wider["callers"]["window_seconds"] = 1800.0
-    assert "ACCOUNTS 5m" in text
-    assert "ACCOUNTS 30m" in render(wider)
+    assert "accounts 5m" in text
+    assert "accounts 30m" in render(wider)
 
 
 def test_eight_project_fixture_folds_two_rows() -> None:
@@ -831,7 +835,7 @@ def test_unavailable_live_entry_renders_one_line_and_no_figures() -> None:
     assert "live entry unavailable" in text
     assert "no raw receipt file with a readable row" in text
     lines = text.splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
+    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
     assert lines[at + 1].split()[3:7] == ["—", "—", "—", "—"]
     assert "11.3" not in text
 
@@ -990,7 +994,7 @@ def test_a_three_engine_document_is_drawn_with_its_router_and_table() -> None:
     lines = text.splitlines()
 
     router = lines[0]
-    assert router.startswith("ROUTER")
+    assert router.startswith("router")
     assert "18802" in router
     assert "3 servers" in router and "3 engines" in router and "2 models" in router
     # One row per engine, naming the model it serves and the id it answers on.
@@ -1027,7 +1031,7 @@ def test_each_engine_carries_its_own_history_and_outcomes_line() -> None:
     lines = text.splitlines()
 
     title = next(index for index, line in enumerate(lines)
-                 if "ACTIVITY" in line)
+                 if "activity" in line)
     assert "strips 30m" in lines[title] and "counts 5m" in lines[title]
     labels = _cells(lines[title + 1])
     assert labels[:4] == ["in", "flight", "gate", "wait"]

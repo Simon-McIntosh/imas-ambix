@@ -1,35 +1,35 @@
-ROUTER  gpu-0003:18802 · 3 servers · 3 engines · 2 models                                             04:40:55
+router  gpu-0003:18802 · 3 servers · 3 engines · 2 models                                             04:40:55
 
-ENGINES
+engines
 model                engine              running    waiting      tok/s   /stream    ttft s kv pool %    room %
 deepseek-v4.1-flash  gpu-0003:18810          9.0          0        812      41.0       0.8        41        64
 deepseek-v4.1-flash  gpu-0001:18812          4.0          0        402      38.0       1.1        22        81
 glm-5.3              b300-0001:18814         2.0          1        210      33.0       1.6         9        93
 
-LANE  deepseek-v4.1-flash · 4×H200 · gpu-0003 · 262k ctx                     DeepSeek-V4.1-Flash-1017@1bae0e10
-LIVE             in use          queue           held          tok/s       /stream     prefill/s        ttft s
-                   4/12              0              0            812          41.0         2.69k           0.6
+lane deepseek-v4.1-flash · 4×H200 · gpu-0003 · 262k ctx                      DeepSeek-V4.1-Flash-1017@1bae0e10
+in use                                  queue         held        tok/s      /stream    prefill/s       ttft s
+4/12                                        0            0          812         41.0        2.69k          0.6
 
-MEMORY          kv pool %      host tier %      cache hit %         mean ctx         max reqs        preempted
-              ██░░░░░░ 21      ████████ 99      ████████ 95             144k               20                0
+kv pool %                                      host tier %  cache hit %     mean ctx     max reqs    preempted
+██░░░░░░ 21                                    ████████ 99  ████████ 95         144k           20            0
 
-ACCOUNTS 5m
+accounts 5m
 account               sessions            runs          in use         per run          wait s         share %
 mcintos                      3              14             9.4             0.7               2    ████████ 100
 
-PROJECTS 5m  mcintos
+projects 5m  mcintos
 project              engine                 sessions           runs         in use       per run        wait s
 power-convertor      gpu-0003:18810                1              6            5.0           0.8             2
 reckon               gpu-0003:18810                1              5            3.0           0.6             2
 nova                 b300-0001:18814               1              3            1.4           0.5             2
 
-ACTIVITY  strips 30m · counts 5m
+activity  strips 30m · counts 5m
                  in flight                      gate wait                         done aborted  failed expired
 all engines      ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▅▆▇▅▄▂▂▂▂▂▂▂▂▂ ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂     412       3       0       0
 gpu-0003:18810   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▅▆▇▅▄▂▂▂▂▂▂▂▂▂ ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂     380       3       0       0
 b300-0001:18814  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁ ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂      32       0       0       0
 
-LEDGER
+ledger
 period   model                       tok in      cached %       tok out       util %       cost $      covered
 1 hour   deepseek-v4.1-flash           232M   ████████ 98         1.15M  ████████ 97         7.45         full
 1 hour   glm-5.3                       232M   ████████ 98         1.15M  ████████ 97         7.45         full

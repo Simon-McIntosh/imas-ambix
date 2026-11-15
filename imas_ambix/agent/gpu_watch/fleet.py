@@ -61,7 +61,7 @@ _ASKED = re.compile(r"ReqTRES=\S*gres/gpu=(\d+)")
 #: The name the scheduler gives a wrapped job submitted without one.
 UNNAMED = "wrap"
 
-_JOB_FORMAT = "%i|%u|%a|%j|%P|%T|%M|%b|%v|%N|%Z"
+_JOB_FORMAT = "%i|%u|%a|%j|%P|%T|%M|%b|%v|%N|%r|%Z"
 _NODE_FORMAT = "%N|%P|%G|%t|%E"
 
 
@@ -107,6 +107,7 @@ class Job:
     gres: str
     reservation: str
     node: str
+    reason: str = ""
     workdir: str = ""
 
     @property
@@ -120,6 +121,18 @@ class Job:
         if self.name == UNNAMED and self.workdir:
             return self.workdir.rstrip("/").rsplit("/", 1)[-1] or self.name
         return self.name
+
+    @property
+    def waits_on(self) -> str:
+        """Why a pending job has not started, in the scheduler's own word."""
+        return "" if self.reason in ("", "None") else self.reason
+
+    @property
+    def span(self) -> str:
+        """Time run so far, without the seconds once it is counted in days."""
+        if "-" in self.elapsed and self.elapsed.count(":") == 2:
+            return self.elapsed.rsplit(":", 1)[0]
+        return self.elapsed
 
     @property
     def running(self) -> bool:
@@ -230,7 +243,8 @@ def parse_jobs(text: str) -> list[Job]:
         parts = [part.strip() for part in line.split("|")]
         if len(parts) < 10 or not parts[0]:
             continue
-        jobs.append(Job(*parts[:10], workdir="|".join(parts[10:])))
+        reason = parts[10] if len(parts) > 10 else ""
+        jobs.append(Job(*parts[:10], reason=reason, workdir="|".join(parts[11:])))
     return jobs
 
 

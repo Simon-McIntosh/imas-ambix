@@ -182,7 +182,7 @@ def _row(lines: list[str], name: str) -> str:
 
 def _titles(lines: list[str]) -> list[str]:
     """The first word of every section's title line, in order."""
-    names = ("gpu-", "LANE", "LEDGER", "QUEUE", "SERVERS")
+    names = ("gpu-", "lane", "ledger", "queue", "servers")
     return [line.split()[0] for line in lines if line.startswith(names)]
 
 
@@ -191,7 +191,7 @@ def test_the_page_is_one_unframed_column_that_fits_its_width(width):
     lines = _page([_h200(), _b300()], engines=2, width=width)
     assert all(len(line) <= width for line in lines)
     assert not any(mark in line for line in lines for mark in "│╭╰─")
-    assert _titles(lines) == ["gpu-0003", "gpu-0004", "LANE", "LANE", "LEDGER", "QUEUE"]
+    assert _titles(lines) == ["gpu-0003", "gpu-0004", "lane", "lane", "ledger", "queue"]
 
 
 def test_a_card_row_is_utilisation_now_its_mean_and_memory():
@@ -233,8 +233,9 @@ def test_a_wider_page_draws_longer_utilisation_bars():
 def test_unreadable_cards_share_one_row_and_stay_out_of_the_mean():
     lines = _page([_h200()])
     row = _row(lines, "gpu 0-1 3")
-    assert "another account's" in row
+    assert "other accounts" in row
     assert "%" not in row
+    assert not any(mark in row for mark in "█░")
 
 
 def test_a_card_whose_sensor_is_silent_leaves_the_total_to_the_others():
@@ -243,17 +244,22 @@ def test_a_card_whose_sensor_is_silent_leaves_the_total_to_the_others():
     assert "63 °C max" in title
 
 
-def test_each_lane_is_titled_with_its_server_and_cards():
+def test_several_lanes_are_each_titled_with_their_server_and_cards():
     lines = _page([_h200(), _b300()], engines=2)
-    lanes = [line for line in lines if line.startswith("LANE")]
+    lanes = [line for line in lines if line.startswith("lane")]
     assert "served-model" in lanes[0] and "gpu-0003 gpu 4-7" in lanes[0]
     assert "other-model" in lanes[1] and "gpu-0004 gpu 0-1" in lanes[1]
 
 
+def test_a_lone_lane_is_titled_with_its_model_and_nothing_the_cards_say():
+    title = _row(_page([_h200()]), "lane")
+    assert title.split() == ["lane", "served-model"]
+
+
 def test_a_lane_is_one_row_of_use_queues_and_rates():
     lines = _page([_h200()])
-    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
-    assert lines[at].split()[1:] == [
+    at = next(i for i, line in enumerate(lines) if line.startswith("in use"))
+    assert lines[at].split() == [
         "in",
         "use",
         "queue",
@@ -265,7 +271,9 @@ def test_a_lane_is_one_row_of_use_queues_and_rates():
         "s",
     ]
     assert lines[at + 1].split() == ["7/16", "0", "0", "300", "50.0", "900", "0.6"]
-    assert not any(line.startswith(("SERVING", "LOAD")) for line in lines)
+    assert not any(
+        line.startswith(("SERVING", "LOAD", "LIVE", "MEMORY")) for line in lines
+    )
 
 
 def test_a_terminal_wider_than_the_page_does_not_stretch_it():
@@ -275,10 +283,9 @@ def test_a_terminal_wider_than_the_page_does_not_stretch_it():
 
 def test_two_servers_share_one_queue_that_names_each_job_s_server():
     lines = _page([_h200(), _b300()], engines=2)
-    assert "QUEUE  3 running · 0 pending" in lines
+    assert "queue  3 running · 0 pending" in lines
     assert "server" in _row(lines, "job")
     assert "gpu-0004" in _row(lines, "300")
-    assert "server" not in _row(_page([_h200()]), "job")
 
 
 @pytest.mark.parametrize("width", [NARROW, WIDE])
@@ -295,9 +302,9 @@ def test_the_queue_takes_the_lines_left_and_counts_what_does_not_fit(width):
 
 def test_a_short_screen_drops_the_ledger_to_keep_the_queue():
     roomy = _page([_h200(jobs=30)], height=33)
-    assert "LEDGER" in roomy
+    assert "ledger" in roomy
     short = _page([_h200(jobs=30)], height=27)
-    assert "LEDGER" not in short
+    assert "ledger" not in short
     assert sum(1 for line in short if line[:3].isdigit()) >= panels.MIN_QUEUE_ROWS - 1
 
 
@@ -351,7 +358,7 @@ def test_the_scheduler_output_is_read_as_servers_jobs_and_cards():
 
 QUEUE_AS_CAPTURED = (
     "1308623|murawan|grpb|qwen38_flash_next|betelgeuse|PENDING|0:00|N/A|"
-    "gpu_0003_grpB|\n"
+    "gpu_0003_grpB||Priority|\n"
     "1308599|murawan|grpb|qwen38_flash_next|betelgeuse|RUNNING|5-15:04:23|N/A|"
     "gpu_0003_grpB|98dci4-gpu-0003\n"
     "1313440|mcintos|grpa|ambix-router|betelgeuse|RUNNING|1-00:56:43|N/A|"
@@ -397,7 +404,7 @@ def test_cards_asked_for_per_job_are_counted_from_the_job_detail():
     assert reading.gpus(waiting) == 2
     queue = _lines(Group(*panels.queue_section([reading], NARROW)))
     assert _row(queue, "1308599").endswith("2")
-    assert "QUEUE  4 running · 1 pending" in queue
+    assert "queue  4 running · 1 pending" in queue
 
 
 def test_a_sampler_joins_each_job_with_cards_and_one_job_on_a_bare_server(
@@ -481,14 +488,78 @@ def test_cards_are_averaged_within_a_job_and_never_across_jobs():
 
 def test_a_job_submitted_without_a_name_is_named_by_its_working_directory():
     jobs = fleet.parse_jobs(
-        "1315842|mcintos|iter|wrap|titan|RUNNING|1:29:31|gres/gpu:1||98dci4-gpu-0002|"
+        "1315842|mcintos|iter|wrap|titan|RUNNING|1:29:31|gres/gpu:1||98dci4-gpu-0002|None|"
         "/home/user/worktrees/nova/diiid-external-current-propagation\n"
         "1294597|mcintos|grpa|served-model|betelgeuse|RUNNING|1:00|gres/gpu:4||"
-        "98dci4-gpu-0003|/home/user/Code/imas-ambix\n"
-        "1309674|buskirj|grpb|wrap|betelgeuse|PENDING|0:00|N/A||\n"
+        "98dci4-gpu-0003|None|/home/user/Code/imas-ambix\n"
+        "1309674|buskirj|grpb|wrap|betelgeuse|PENDING|0:00|N/A|||Resources|\n"
     )
     assert [job.label for job in jobs] == [
         "diiid-external-current-propagation",
         "served-model",
         "wrap",
     ]
+
+
+def _coloured(renderable: object, width: int = NARROW) -> str:
+    """*renderable* as terminal text with its colour codes kept."""
+    console = Console(width=width, force_terminal=True, color_system="standard")
+    with console.capture() as capture:
+        console.print(renderable)
+    return capture.get()
+
+
+@pytest.mark.parametrize("width", [80, NARROW, 110])
+def test_every_section_ends_its_last_column_on_the_page_s_right_edge(width):
+    """One grid for the whole page: bars, lane, ledger and queue share an edge."""
+    lines = _page([_h200(), _b300()], engines=2, width=width)
+    for name in ("gpu 4-7", "host", "7/16", "1 hour", "100 "):
+        assert len(_row(lines, name)) == width, name
+
+
+def test_a_pending_job_shows_why_it_waits_where_a_running_one_shows_its_server():
+    jobs = fleet.parse_jobs(QUEUE_AS_CAPTURED)
+    reading = Reading(Server("98dci4-gpu-0003", "betelgeuse", "H200", 8), jobs=jobs)
+    queue = _lines(Group(*panels.queue_section([reading], NARROW)))
+    waiting = _row(queue, "1308623").split()
+    assert waiting[3:] == ["pending", "·", "Priority", "—", "—"]
+    assert "state" not in _row(queue, "job")
+    assert "acct" not in _row(queue, "job")
+    # Days of running are told without their seconds.
+    assert "21-13:41" in _row(queue, "1294597")
+    assert "21-13:41:22" not in _row(queue, "1294597")
+
+
+def test_an_idle_card_s_figure_is_red_and_a_full_memory_bar_is_green():
+    reading = _b300()
+    reading.cards = [Card(0, 0.0, 0.0, 95.0, 61.0, 900.0, 1200.0)]
+    reading.job_cards = {"300": {0}}
+    row = next(
+        line
+        for line in _coloured(
+            Group(*panels.server_section(reading, WINDOW, NARROW))
+        ).splitlines()
+        if "other-model" in line
+    )
+    idle, memory = row.split("0%", 1)[0], row.rsplit("\x1b[32m", 1)[1]
+    assert idle.endswith("\x1b[31m")
+    assert "█" in memory and "95%" in memory
+
+
+def test_the_cards_allocated_are_green_only_when_the_server_is_full():
+    partly = _coloured(Group(*panels.server_section(_h200(), WINDOW, NARROW)))
+    assert "\x1b[33m7/8\x1b[0m" in partly
+    reading = _h200()
+    reading.jobs.append(
+        _job(
+            "102",
+            "peer",
+            "grpb",
+            "one-more",
+            "RUNNING",
+            reading.server.node,
+            "gres/gpu:1",
+        )
+    )
+    full = _coloured(Group(*panels.server_section(reading, WINDOW, NARROW)))
+    assert "\x1b[32m8/8\x1b[0m" in full
