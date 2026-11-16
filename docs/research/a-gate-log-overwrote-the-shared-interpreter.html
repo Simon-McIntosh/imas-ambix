@@ -32,7 +32,8 @@
         <tr><td>06:04:54</td><td>Job 1319167 <code>rvq-gate-delivered</code> starts on <code>98dci4-clu-3141</code> with three leading arguments. The wrapper truncates the interpreter and writes its log header there. The job exits 126 in under a second.</td><td><code>sacct</code>; mtime of the interpreter file, 06:04:54.84</td></tr>
         <tr><td>06:04:55</td><td>Jobs 1319011 and 1319046 (<code>nova-west-baseline</code>, <code>nova-west-after</code>) fail on <code>clu-2008</code> and <code>clu-2009</code>.</td><td><code>sacct</code></td></tr>
         <tr><td>06:04:59</td><td>Job 1318880 (<code>nova-lane</code>) fails on <code>gpu-0002</code>. On the fleet node, Python processes fall from 72 to 14 between the 06:03:59 and 06:04:59 samples, and job memory falls from 89.6 GB to 57.7 GB.</td><td><code>sacct</code>; fleet health series</td></tr>
-        <tr><td>06:05:16</td><td>Fleet job 1313886 ends. Every zellij session on <code>98dci4-clu-2001</code> is lost with it.</td><td><code>sacct</code></td></tr>
+        <tr><td>04:29</td><td>Slurm drains <code>98dci4-clu-2001</code> with reason "Kill task failed". The fleet job keeps running; the node accepts no new job.</td><td><code>sinfo</code></td></tr>
+        <tr><td>06:05:16</td><td>Fleet job 1313886 ends. Every zellij session on <code>98dci4-clu-2001</code> is lost with it: the batch step ends and the 21 steps still running are cancelled at 06:05:19–20.</td><td><code>sacct</code></td></tr>
         <tr><td>06:40</td><td><code>cx</code> on the client reports "no fleet running; holding one", then "the fleet hold did not report a job id".</td><td>terminal; <code>hold.lock</code> mtime</td></tr>
         <tr><td>06:53</td><td>The interpreter is reinstalled. <code>reckon --version</code> answers again.</td><td>this session</td></tr>
       </tbody>
@@ -91,7 +92,7 @@ EXIT=126</pre>
       <thead><tr><th>Item</th><th>State after the failure</th></tr></thead>
       <tbody>
         <tr><td>Fleet job, supervisor, station, admit service</td><td>Dead. The runtime directory under the node's <code>/tmp</code> went with the allocation.</td></tr>
-        <tr><td>Orchestrator sessions in zellij on the fleet node</td><td>Dead. Their transcripts are on GPFS, so each resumes by session id.</td></tr>
+        <tr><td>Orchestrator sessions in zellij on the fleet node</td><td>Dead: five zellij servers holding 15 conversations. Their transcripts and zellij's saved layouts (16 panes, written 20:19–01:19) are on GPFS, so each pane resumes its own conversation when the session is started again.</td></tr>
         <tr><td>Worker runs</td><td>18 live pointers read <code>working</code> or <code>starting</code> with no process behind them. Each lost its current turn.</td></tr>
         <tr><td>Worktrees and commits</td><td>Intact on GPFS.</td></tr>
         <tr><td>reckon's queue</td><td>Intact: 50 queued, 42 awaiting upstream, 8 held at 06:50.</td></tr>
@@ -138,6 +139,7 @@ EXIT=126</pre>
         <tr><td>A redirect onto an installed interpreter is refused.</td><td>the user's environment</td><td>Every writer under this account, on every node, including Slurm jobs.</td><td><code>: &gt; ~/Code/reckon/.venv/bin/python</code> fails with "Permission denied" and <code>reckon --version</code> still answers.</td></tr>
         <tr><td>A worker, and any job it submits, cannot write the shared environment or uv's install tree.</td><td>reckon</td><td>The path used here. The current write fence mounts <code>~/.claude</code> read-only around a worker launch; it does not cover <code>~/.local/share/uv</code> or a main checkout's <code>.venv</code>, and it does not follow the worker into an <code>sbatch</code> job, which is where this write happened.</td><td>The call in §3, replayed from a worker's worktree both directly and through <code>sbatch</code>, leaves the interpreter's size and mtime unchanged.</td></tr>
         <tr><td>A gate's log path cannot be a path the gate did not create.</td><td>reckon</td><td>The wrong-argument class. Each worker writing its own wrapper means each worker can repeat this mistake.</td><td>A gate invoked with an existing executable as its log path exits non-zero and writes nothing to it.</td></tr>
+        <tr><td>The sessions outlive the supervisor's interpreter.</td><td>reckon</td><td>The blast radius. The batch step is the Python supervisor, started from the checkout's <code>.venv</code>. When it died, Slurm ended the job and cancelled the 21 remaining steps with SIGTERM four seconds later, taking five zellij servers and 15 orchestrator conversations that do not themselves run on Python.</td><td>Killing the supervisor process on a rehearsal fleet leaves the zellij servers and their panes running.</td></tr>
         <tr><td>A hold that fails says why.</td><td>dotfiles (<code>cx</code>)</td><td>Diagnosis time, not the failure.</td><td>With <code>reckon</code> unrunnable, <code>cx</code> prints the hold command's own error.</td></tr>
       </tbody>
     </table>
