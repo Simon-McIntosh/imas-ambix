@@ -147,7 +147,27 @@ EXIT=126</pre>
     <p>The first outcome was not in place when this record was written. The interim form is <code>chmod a-w</code> on each <code>~/.local/share/uv/python/cpython-*/bin/python3.*</code>; it has to be repeated whenever uv installs a new interpreter, so it is a stopgap and the second outcome is the durable one.</p>
     <p>The negative control for the second and third outcomes is the incident itself: the three-argument call in §3 must fail without changing the file it names.</p>
 
-    <h2 id="s7">§7 — Evidence</h2>
+    <h2 id="s7">§7 — A second analysis, checked against the record</h2>
+    <p>A session that did not know about the overwrite analysed the same failure and concluded that the fleet ran out of memory. Its conclusion about the trigger is wrong, and most of its findings about load are right. Each was checked against the health series and the 115 process tables the supervisor saved.</p>
+    <table>
+      <thead><tr><th>Claim</th><th>Verdict</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>The job died of memory exhaustion at 06:05:16 UTC, after a final hour with no monitoring.</td><td>Wrong</td><td>06:05:16 is CET. The job ended at 05:05:16 UTC, four minutes after the last log line it cites. The health series has a sample every minute to 05:04:59 with no gap, and the last three read 86.0, 89.6 and 57.7 GB against a 96 GB limit. Memory fell at the end because the Python processes died.</td></tr>
+        <tr><td><code>crew dispatch --batch</code> reached 44 GB in one process.</td><td>Confirmed</td><td>44.2 GB at 15 Nov 17:23 UTC (Sunday, not Saturday), 21.9 GB eleven minutes later.</td></tr>
+        <tr><td><code>crew admit</code> reached 33 GB.</td><td>Confirmed</td><td>32.9 GB at 15 Nov 23:46 UTC in a process 16 minutes old.</td></tr>
+        <tr><td><code>crew station</code> holds 10–15 GB.</td><td>Confirmed</td><td>Peaks of 14.7, 12.3 and 12.2 GB. Whether it grows with uptime was not checked.</td></tr>
+        <tr><td>Tests on the fleet node used 23 GB.</td><td>Confirmed</td><td>23.1 GB at 16 Nov 00:27 UTC, across 163 processes rather than 46.</td></tr>
+        <tr><td>30–120 <code>reckon mcp</code> servers used up to 31 GB.</td><td>Partly checked</td><td>30 servers held 9.5 GB at 00:27 UTC. The 31 GB peak was not looked for.</td></tr>
+        <tr><td>Session scratch is in memory-backed <code>/dev/shm</code>.</td><td>Confirmed</td><td>Scratchpads resolve under <code>/dev/shm/39486-fleet-&lt;job&gt;/</code>, so their files count against the job's memory.</td></tr>
+        <tr><td>The node was drained because local <code>/tmp</code> filled with ambix ingest leftovers.</td><td>Plausible, not confirmed</td><td>The drain at 04:29 CET is real. The old node's <code>/tmp</code> cannot be read now. At 04:28 UTC seven processes were blocked on storage, four of them on local-disk waits. The leak mechanism is real and is described below.</td></tr>
+        <tr><td>The new node's <code>/tmp</code> is 23 GB.</td><td>Confirmed</td><td>23 GB, 38 % used at 21:31 UTC, of which the watch index is 5.3 GB.</td></tr>
+        <tr><td>The new fleet is already large.</td><td>Confirmed</td><td>56.8 GB of a 144 GB limit after 15.5 hours.</td></tr>
+      </tbody>
+    </table>
+    <p>The ingest leak was a defect in this repository and is fixed (commit <code>1d1f9089</code>). A daily snapshot holds a second copy of the watch index, about 5 GB, in a scratch directory beside it on the node's local disk. The directory is removed when the pass ends normally. The supervisor stops and restarts the ingest service whenever its code moves, which happened about every twenty minutes overnight, and a process stopped mid-snapshot left its copy behind. Scratch directories now carry the pid that made them, and the ingest command removes any whose process has gone before it starts.</p>
+    <p>The analysis's recommendations stand on their own evidence, apart from the first, which is done: a memory limit per declared service, the three control processes' memory use, admission that responds to memory pressure, health samples written from outside the job, tests kept off the fleet node, a watch on local <code>/tmp</code>, and session scratch moved off <code>/dev/shm</code>. None of them would have prevented this failure. All of them describe a node that was killed 125 times in under three days.</p>
+
+    <h2 id="s8">§8 — Evidence</h2>
     <table>
       <thead><tr><th>What</th><th>Where</th></tr></thead>
       <tbody>
