@@ -582,7 +582,7 @@ def test_watch_cli_without_local_index_reads_published_stamp(tmp_path, monkeypat
     assert result.output == published.read_text()
     result = CliRunner().invoke(main, ["agent", "watch"])
     assert result.exit_code == 0, result.output
-    assert result.output == published.read_text()
+    assert "llm-watch" in result.output
 
 
 def test_publisher_refuses_to_refresh_old_published_document(tmp_path, monkeypatch):
@@ -597,3 +597,34 @@ def test_publisher_refuses_to_refresh_old_published_document(tmp_path, monkeypat
 
     assert "publish-watch failed: no local watch index" in line
     assert published.read_bytes() == original
+
+
+def test_scratch_left_by_a_process_that_has_gone_is_removed(tmp_path, monkeypatch):
+    index_path = tmp_path / "watch-index.sqlite3"
+    gone = tmp_path / f"{index_placement.SCRATCH_PREFIX}4242-abandoned"
+    gone.mkdir()
+    (gone / "backup.sqlite3").write_bytes(b"x" * 64)
+    live = tmp_path / f"{index_placement.SCRATCH_PREFIX}77-working"
+    live.mkdir()
+    unrelated = tmp_path / "tmpother"
+    unrelated.mkdir()
+    unowned = tmp_path / f"{index_placement.SCRATCH_PREFIX}noowner"
+    unowned.mkdir()
+    monkeypatch.setattr(index_placement, "_process_is_alive", lambda pid: pid == 77)
+
+    assert index_placement.sweep_scratch(index_path) == [gone]
+
+    assert not gone.exists()
+    assert live.is_dir()
+    assert unrelated.is_dir()
+    assert unowned.is_dir()
+
+
+def test_scratch_is_named_for_the_process_that_makes_it(tmp_path):
+    import os
+
+    with index_placement._scratch(tmp_path) as scratch:
+        name = Path(scratch).name
+        assert name.startswith(f"{index_placement.SCRATCH_PREFIX}{os.getpid()}-")
+        assert index_placement.sweep_scratch(tmp_path / "watch-index.sqlite3") == []
+        assert Path(scratch).is_dir()

@@ -3566,6 +3566,9 @@ def ingest(
         )
     resolved_index = resolved_index.resolve()
     resolved_index.parent.mkdir(parents=True, exist_ok=True)
+    for stale in index_placement.sweep_scratch(resolved_index):
+        sys.stdout.write(f"index scratch removed {stale}\n")
+        sys.stdout.flush()
     index_placement.restore_index(resolved_index)
     if (
         resolved_index.exists()

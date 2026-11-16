@@ -29,7 +29,50 @@ NETWORK_FILESYSTEM_TYPES = frozenset(
 SNAPSHOT_DIR = Path.home() / ".local" / "state" / "ambix" / "index-snapshots"
 SNAPSHOT_PREFIX = "watch-index-"
 SNAPSHOT_SUFFIX = ".sqlite3.zst"
+SCRATCH_PREFIX = "watch-index-scratch-"
 _VERIFIED_SIGNATURES: dict[Path, tuple[int, int, int, int, int]] = {}
+
+
+def _scratch(parent: Path) -> tempfile.TemporaryDirectory[str]:
+    """A scratch directory beside the index, named for the process that owns it."""
+    return tempfile.TemporaryDirectory(
+        dir=parent, prefix=f"{SCRATCH_PREFIX}{os.getpid()}-"
+    )
+
+
+def _process_is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def sweep_scratch(index_path: str | Path) -> list[Path]:
+    """Remove scratch directories beside the index whose process has gone.
+
+    A snapshot or a restore holds a second copy of the index in scratch while
+    it works, and a process that is killed mid-pass never removes it. The index
+    lives on a node's local disk, which is small, so a few such copies fill it.
+    Each scratch directory carries the pid that made it, and the directory is
+    node-local, so a pid that no longer runs here owns nothing that is in use.
+    """
+    parent = Path(index_path).expanduser().parent
+    removed = []
+    try:
+        entries = sorted(parent.glob(f"{SCRATCH_PREFIX}*"))
+    except OSError:
+        return removed
+    for entry in entries:
+        owner = entry.name[len(SCRATCH_PREFIX) :].split("-", 1)[0]
+        if not owner.isdigit() or _process_is_alive(int(owner)):
+            continue
+        shutil.rmtree(entry, ignore_errors=True)
+        if not entry.exists():
+            removed.append(entry)
+    return removed
 
 
 def filesystem_type(path: str | Path) -> int:
@@ -156,7 +199,7 @@ def _snapshot_is_verified(source: Path, local_dir: Path) -> bool:
             if _signature(receipt) != receipt_signature:
                 raise ValueError("snapshot digest receipt changed while it was checked")
         else:
-            with tempfile.TemporaryDirectory(dir=local_dir) as scratch:
+            with _scratch(local_dir) as scratch:
                 _decompress_and_check(source, Path(scratch) / "check.sqlite3")
         if _signature(source) != signature:
             raise ValueError("snapshot changed while it was checked")
@@ -198,7 +241,7 @@ def snapshot_index(
     directory.mkdir(parents=True, exist_ok=True)
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     final = directory / f"{SNAPSHOT_PREFIX}{stamp}{SNAPSHOT_SUFFIX}"
-    with tempfile.TemporaryDirectory(dir=index_path.parent) as scratch:
+    with _scratch(index_path.parent) as scratch:
         plain = Path(scratch) / "backup.sqlite3"
         with (
             closing(
@@ -259,7 +302,7 @@ def restore_index(path: Path, *, directory: Path | None = None) -> Path | None:
         return None
     target.parent.mkdir(parents=True, exist_ok=True)
     for source in _snapshot_paths(directory):
-        with tempfile.TemporaryDirectory(dir=target.parent) as scratch:
+        with _scratch(target.parent) as scratch:
             candidate = Path(scratch) / "restored.sqlite3"
             try:
                 _decompress_and_check(source, candidate)
