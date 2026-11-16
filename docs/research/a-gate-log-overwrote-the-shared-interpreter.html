@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="a-gate-log-overwrote-the-shared-interpreter">
+  <meta name="plan-title"    content="A Gate Log Overwrote The Shared Interpreter">
+  <meta name="plan-summary"  content="RCA 2026-11-16: a worker's gate wrapper wrote its log over the shared Python 3.14 binary and the fleet died">
+  <meta name="plan-tags"     content="agent-serving,gpu-deployment">
+  <meta name="plan-informs"  content="reckon:a-worker-cannot-write-your-home,slurm-hosted-agent-fleet">
+  <title>A Gate Log Overwrote The Shared Interpreter | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Summary</h2>
+    <p>On 2026-11-16 at 06:04:54 CET a reckon worker submitted a gate job whose wrapper script was called with one positional argument missing. The wrapper took the path of the worktree's Python as its log file and opened it for writing. That path is a symlink chain ending at the Python 3.14.2 binary that uv installs once per user, so the redirect replaced the interpreter with a 765-byte gate log. Every running Python process on that interpreter, on every node, died within about a minute. The fleet supervisor was one of them, and fleet job 1313886 ended at 06:05:16.</p>
+    <p>Slurm recorded the job as <code>OUT_OF_MEMORY</code>. That label is misleading: it comes from 125 out-of-memory kills accumulated over the job's 2.7 days, not from the final minute. Memory pressure on the fleet node is real and is described in §5, but it did not cause this failure.</p>
+    <p>The interpreter was restored at 06:53 CET with <code>uv python install --reinstall 3.14.2</code>. The work that reckon owns is in §6: nothing in the current design stops the same single mistake from doing the same damage again.</p>
+    <p>This record lives in imas-ambix because the session that diagnosed the failure could write only here. The mechanisms that need changing are reckon's.</p>
+
+    <h2 id="s2">§2 — Timeline</h2>
+    <p>Times are CET (UTC+1). The fleet's own logs are in UTC and are converted here.</p>
+    <table>
+      <thead><tr><th>Time</th><th>Event</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>04:13</td><td>The worker writes its gate wrapper <code>arm.sh</code> into its run directory.</td><td>file mtime</td></tr>
+        <tr><td>05:16–06:01</td><td>The worker submits six other <code>rvq-*</code> jobs (<code>rvq-head-arm</code>, <code>rvq-crew-base</code>, <code>rvq-crew-om</code> twice, <code>rvq-crew-head</code>, <code>rvq-final-gate</code>). Five fail and one completes. Their arguments were not traced.</td><td><code>sacct</code>, run directory</td></tr>
+        <tr><td>06:04:54</td><td>Job 1319167 <code>rvq-gate-delivered</code> starts on <code>98dci4-clu-3141</code> with three leading arguments. The wrapper truncates the interpreter and writes its log header there. The job exits 126 in under a second.</td><td><code>sacct</code>; mtime of the interpreter file, 06:04:54.84</td></tr>
+        <tr><td>06:04:55</td><td>Jobs 1319011 and 1319046 (<code>nova-west-baseline</code>, <code>nova-west-after</code>) fail on <code>clu-2008</code> and <code>clu-2009</code>.</td><td><code>sacct</code></td></tr>
+        <tr><td>06:04:59</td><td>Job 1318880 (<code>nova-lane</code>) fails on <code>gpu-0002</code>. On the fleet node, Python processes fall from 72 to 14 between the 06:03:59 and 06:04:59 samples, and job memory falls from 89.6 GB to 57.7 GB.</td><td><code>sacct</code>; fleet health series</td></tr>
+        <tr><td>06:05:16</td><td>Fleet job 1313886 ends. Every zellij session on <code>98dci4-clu-2001</code> is lost with it.</td><td><code>sacct</code></td></tr>
+        <tr><td>06:40</td><td><code>cx</code> on the client reports "no fleet running; holding one", then "the fleet hold did not report a job id".</td><td>terminal; <code>hold.lock</code> mtime</td></tr>
+        <tr><td>06:53</td><td>The interpreter is reinstalled. <code>reckon --version</code> answers again.</td><td>this session</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s3">§3 — Mechanism</h2>
+    <p>The wrapper is a script the worker wrote for its own gates. It takes four positional arguments and checks none of them:</p>
+    <pre>TREE="$1"
+REVISION="$2"
+LOG="$3"
+PYTHON="$4"
+shift 4
+cd "$TREE" || exit 97
+COMMAND="env -u SLURM_JOB_ID PYTHONPATH=. $PYTHON -m pytest -p no:cacheprovider -q $*"
+{
+  echo "# revision: $REVISION"
+  ...
+} &gt; "$LOG"</pre>
+    <p>The failing call left out the revision:</p>
+    <pre>sbatch --wait -p all_debug -J rvq-gate-delivered -t 00:30:00 \
+  -o "$RUN/slurm-delivered-gate.out" \
+  "$RUN/arm.sh" "$WT" "$RUN/head-gate-delivered.log" "$PY" \
+  tests/test_run_verbs_share_one_identity_grammar.py</pre>
+    <p>Every argument therefore moved one place to the left.</p>
+    <table>
+      <thead><tr><th>Variable</th><th>Intended</th><th>Received</th></tr></thead>
+      <tbody>
+        <tr><td><code>TREE</code></td><td>the worktree</td><td>the worktree</td></tr>
+        <tr><td><code>REVISION</code></td><td>a commit</td><td>the log path</td></tr>
+        <tr><td><code>LOG</code></td><td>the log path</td><td><code>&lt;worktree&gt;/.venv/bin/python</code></td></tr>
+        <tr><td><code>PYTHON</code></td><td><code>&lt;worktree&gt;/.venv/bin/python</code></td><td>the test file</td></tr>
+      </tbody>
+    </table>
+    <p>The redirect <code>&gt; "$LOG"</code> followed three symlinks to one regular file:</p>
+    <pre>&lt;worktree&gt;/.venv
+  -&gt; ~/Code/reckon/.venv                       (worktree provisioning)
+~/Code/reckon/.venv/bin/python
+  -&gt; ~/.local/share/uv/python/cpython-3.14.2-linux-x86_64-gnu/bin/python3.14
+                                               (uv's per-user install)</pre>
+    <p>The file that replaced the interpreter is the wrapper's own log. It names the job and the shifted arguments, which is how the cause was identified:</p>
+    <pre># revision: ~/.config/reckon/crew/runs/r-20261115T224629880489-qwnw-red-file-run-verbs-share-one-identity-grammar/head-gate-delivered.log
+# tree: ~/Code/.reckon-worktrees/reckon-c8f839407e49/8e41a6d3-.../qwnw-red-file-run-verbs-share-one-identity-grammar
+# host: 98dci4-clu-3141.iter.org partition all_debug job 1319167
+# command: env -u SLURM_JOB_ID PYTHONPATH=. tests/test_run_verbs_share_one_identity_grammar.py -m pytest -p no:cacheprovider -q
+env: 'tests/test_run_verbs_share_one_identity_grammar.py': Permission denied
+EXIT=126</pre>
+    <p>Three properties of the environment turned one wrong argument into a workstation-wide outage.</p>
+    <ul>
+      <li><strong>The interpreter was writable by its owner.</strong> uv installs it mode 755, so an ordinary redirect by the same user succeeds.</li>
+      <li><strong>GPFS does not refuse a write to a running executable from another node.</strong> On a local filesystem the truncation would have failed with "text file busy". Here it succeeded, and processes that had the binary mapped were killed when they next touched a page of it. A monitor on the login node exited 135, which is SIGBUS.</li>
+      <li><strong>One file serves four projects.</strong> The reckon, imas-ambix, nova and power_convertor environments all resolve to this binary. imas-codex (3.12) and imas-efit (3.13) do not, and were unaffected.</li>
+    </ul>
+
+    <h2 id="s4">§4 — What was lost and what survived</h2>
+    <table>
+      <thead><tr><th>Item</th><th>State after the failure</th></tr></thead>
+      <tbody>
+        <tr><td>Fleet job, supervisor, station, admit service</td><td>Dead. The runtime directory under the node's <code>/tmp</code> went with the allocation.</td></tr>
+        <tr><td>Orchestrator sessions in zellij on the fleet node</td><td>Dead. Their transcripts are on GPFS, so each resumes by session id.</td></tr>
+        <tr><td>Worker runs</td><td>18 live pointers read <code>working</code> or <code>starting</code> with no process behind them. Each lost its current turn.</td></tr>
+        <tr><td>Worktrees and commits</td><td>Intact on GPFS.</td></tr>
+        <tr><td>reckon's queue</td><td>Intact: 50 queued, 42 awaiting upstream, 8 held at 06:50.</td></tr>
+        <tr><td>Model lane and router</td><td>Running throughout with no errors in the router log. The router runs from <code>~/.local/share/ambix/engine-envs/vllm/.venv</code>, a separate environment.</td></tr>
+        <tr><td>Three nova Slurm jobs on other nodes</td><td>Failed at 06:04:55–59.</td></tr>
+      </tbody>
+    </table>
+    <p>Fleet restart was blocked for the same reason the fleet died. <code>cx</code> calls <code>reckon fleet-node hold --submit</code> and reads a job id from its output. With the interpreter replaced by text, the kernel refused to execute <code>reckon</code>'s shebang target, bash ran the console script as shell, and no job id was printed. <code>cx</code> discards the command's output in that case, so the terminal showed only "the fleet hold did not report a job id".</p>
+    <p>Not checked: whether any other file was overwritten the same way. The worker's six earlier <code>rvq-*</code> jobs may have used the same wrapper, and five of them failed; only the last was traced.</p>
+
+    <h2 id="s5">§5 — Memory, CPU and storage on the fleet node</h2>
+    <p>The lead asked whether load or a GPFS flap was involved, because the fleet had looked short of memory. Neither triggered the failure. The figures below come from the supervisor's one-minute health series and its last process table, taken at 06:00:58.</p>
+    <table>
+      <thead><tr><th>Quantity</th><th>Reading</th></tr></thead>
+      <tbody>
+        <tr><td>Job memory limit</td><td>96 GB</td></tr>
+        <tr><td>Job memory, last ten minutes</td><td>80–90 GB</td></tr>
+        <tr><td>Job memory at the limit</td><td>14 Nov 12:01 and 15 Nov 10:10</td></tr>
+        <tr><td>Out-of-memory kills over the job's life</td><td>125 (times not recoverable from the login node)</td></tr>
+        <tr><td>Load average, last ten minutes</td><td>30–67 on 28 cores</td></tr>
+        <tr><td>Worst load overnight</td><td>288 at 00:46, with 86 processes blocked on storage and 8 GB available</td></tr>
+        <tr><td>Home <code>stat</code>, last ten minutes</td><td>3–5 ms; the Slurm controller answered every probe</td></tr>
+      </tbody>
+    </table>
+    <p>Resident memory by command at the last sample summed to 57.5 GB over 376 processes. The rest of the job's charge was cache.</p>
+    <table>
+      <thead><tr><th>Command</th><th>Processes</th><th>Resident</th></tr></thead>
+      <tbody>
+        <tr><td><code>reckon</code></td><td>32</td><td>21.6 GB</td></tr>
+        <tr><td><code>omp</code> workers</td><td>29</td><td>9.7 GB</td></tr>
+        <tr><td><code>python3</code></td><td>72</td><td>8.5 GB</td></tr>
+        <tr><td><code>python</code></td><td>6</td><td>7.9 GB</td></tr>
+        <tr><td><code>claude</code> sessions</td><td>15</td><td>6.5 GB</td></tr>
+        <tr><td><code>imas-codex</code></td><td>8</td><td>1.8 GB</td></tr>
+      </tbody>
+    </table>
+    <p>The largest single processes were the admit service at 5.0 GB thirteen minutes after a restart, the station at 4.1 GB, a worker's <code>pytest tests/test_ledger.py</code> running on the fleet node at 3.5 GB, and eight <code>reckon mcp</code> servers between 0.6 and 1.6 GB each. A node that sits at 80–95 % of its memory limit and has already been killed 125 times is a separate defect, and the admit service's growth rate is the first thing to measure.</p>
+
+    <h2 id="s6">§6 — What would stop a repeat</h2>
+    <p>The failure needed a wrong argument, a writable interpreter and a path from a worktree to that interpreter. Removing any one of them is enough. The outcomes below are ordered by how much of the exposure each removes.</p>
+    <table>
+      <thead><tr><th>Outcome</th><th>Owner</th><th>What it covers</th><th>How to tell it holds</th></tr></thead>
+      <tbody>
+        <tr><td>A redirect onto an installed interpreter is refused.</td><td>the user's environment</td><td>Every writer under this account, on every node, including Slurm jobs.</td><td><code>: &gt; ~/Code/reckon/.venv/bin/python</code> fails with "Permission denied" and <code>reckon --version</code> still answers.</td></tr>
+        <tr><td>A worker, and any job it submits, cannot write the shared environment or uv's install tree.</td><td>reckon</td><td>The path used here. The current write fence mounts <code>~/.claude</code> read-only around a worker launch; it does not cover <code>~/.local/share/uv</code> or a main checkout's <code>.venv</code>, and it does not follow the worker into an <code>sbatch</code> job, which is where this write happened.</td><td>The call in §3, replayed from a worker's worktree both directly and through <code>sbatch</code>, leaves the interpreter's size and mtime unchanged.</td></tr>
+        <tr><td>A gate's log path cannot be a path the gate did not create.</td><td>reckon</td><td>The wrong-argument class. Each worker writing its own wrapper means each worker can repeat this mistake.</td><td>A gate invoked with an existing executable as its log path exits non-zero and writes nothing to it.</td></tr>
+        <tr><td>A hold that fails says why.</td><td>dotfiles (<code>cx</code>)</td><td>Diagnosis time, not the failure.</td><td>With <code>reckon</code> unrunnable, <code>cx</code> prints the hold command's own error.</td></tr>
+      </tbody>
+    </table>
+    <p>The first outcome was not in place when this record was written. The interim form is <code>chmod a-w</code> on each <code>~/.local/share/uv/python/cpython-*/bin/python3.*</code>; it has to be repeated whenever uv installs a new interpreter, so it is a stopgap and the second outcome is the durable one.</p>
+    <p>The negative control for the second and third outcomes is the incident itself: the three-argument call in §3 must fail without changing the file it names.</p>
+
+    <h2 id="s7">§7 — Evidence</h2>
+    <table>
+      <thead><tr><th>What</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td>Offending run directory: wrapper, Slurm output, worker stream</td><td><code>~/.config/reckon/crew/runs/r-20261115T224629880489-qwnw-red-file-run-verbs-share-one-identity-grammar/</code> (<code>arm.sh</code>, <code>slurm-delivered-gate.out</code>, <code>resume-2.jsonl</code>)</td></tr>
+        <tr><td>Fleet supervisor log, ending in the out-of-memory line</td><td><code>~/.local/state/fleet/fleet-1313886.log</code></td></tr>
+        <tr><td>One-minute health series</td><td><code>~/.local/state/fleet/health/1313886-98dci4-clu-2001.tsv</code></td></tr>
+        <tr><td>Last process table</td><td><code>~/.local/state/fleet/health/1313886-98dci4-clu-2001-20261116T050058Z.ps</code></td></tr>
+        <tr><td>Job accounting</td><td><code>sacct -j 1313886</code>, <code>sacct -j 1319167</code></td></tr>
+        <tr><td>Router log</td><td><code>~/.local/state/ambix/slurm-logs/ambix-router-1313440.log</code></td></tr>
+      </tbody>
+    </table>
+    <p>The overwritten interpreter file itself no longer exists: the reinstall replaced it. Its content is quoted in full in §3.</p>
+  </main>
+</body>
+</html>
