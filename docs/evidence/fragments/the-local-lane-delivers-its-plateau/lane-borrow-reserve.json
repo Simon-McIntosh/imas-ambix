@@ -1,0 +1,106 @@
+{
+  "admission": {
+    "active_sessions": 5,
+    "borrow_reserve": 2,
+    "fair_share": 6,
+    "headroom": 2,
+    "live_runs": 25,
+    "new_session_worker_slots": 5,
+    "observed_seconds": 900.0,
+    "oldest_wait_seconds": null,
+    "requests_per_run": 0.367,
+    "samples": 646,
+    "sessions": {
+      "829e5a4a-6870-4aec-876d-ba2efb1b5ecf": {
+        "live_runs": 1,
+        "worker_slots": 5
+      },
+      "8e41a6d3-d0e0-4927-afd1-771942ebfe6a": {
+        "live_runs": 6,
+        "worker_slots": 0
+      },
+      "a4da51b9-7149-418e-8132-1679f3f73fd2": {
+        "live_runs": 2,
+        "worker_slots": 4
+      },
+      "d2b31d35-d43f-471c-8494-93ef30b1d4b5": {
+        "live_runs": 1,
+        "worker_slots": 5
+      },
+      "fe0acb0a-56ea-447a-8357-bb11f3bf471c": {
+        "live_runs": 1,
+        "worker_slots": 5
+      }
+    },
+    "unkeyed_share": 0.0,
+    "verdict": "open",
+    "waiting": 0,
+    "window_seconds": 900.0,
+    "worker_slots": 7,
+    "worker_slots_basis": "measured"
+  },
+  "availability_percent": 16.67,
+  "binding_observed": null,
+  "concurrent_requests": 33,
+  "concurrent_requests_instant": 31,
+  "derived_from": {
+    "formula": "concurrent_requests = (pool_tokens * occupancy_target) // mean_context, capped at 96; mean_context = MEDIAN over the window of (pool_tokens * kv_occupancy / running); headroom = concurrent_requests - running_at_observation",
+    "mean_context": 106667,
+    "occupancy_target": 0.9,
+    "pool_tokens": 4000000,
+    "running_at_observation": 9
+  },
+  "engine_headroom": 24,
+  "headroom": 2,
+  "headroom_instant": 22,
+  "headroom_is_upper_bound": true,
+  "hicache_host": {
+    "total_tokens": 8000000,
+    "used_fraction": 0.999104,
+    "used_tokens": 7992832
+  },
+  "kv_occupancy": 0.26,
+  "lanes": {
+    "deepseek-v4.1-flash": "lane.json"
+  },
+  "mean_context": 106667,
+  "mean_context_instant": 115556,
+  "mean_context_spread": [
+    88000,
+    120000
+  ],
+  "model_id": "deepseek-v4.1-flash",
+  "observed_at": "2026-11-18T11:25:32Z",
+  "pool_tokens": 4000000,
+  "preemptions": null,
+  "prefix_hit_rate": 0.0,
+  "router_generation_gate": {
+    "config_path": "/work/projects/imas_gpu/agents/control/router-gate.json",
+    "context_estimate": 111179.474903491,
+    "effective_width": 12,
+    "enabled": true,
+    "in_flight": 10,
+    "paused": false,
+    "reason": null,
+    "wait_seconds": 300.0,
+    "waiting": 0,
+    "width": 12
+  },
+  "running": 9,
+  "settling": null,
+  "settling_caveat": "a reading taken within ~60s of a dispatch reports the fleet at its lightest; prefer a pre-dispatch reading",
+  "sizing_reason": "the working context is steady across this window",
+  "sizing_verdict": "usable",
+  "state": "measured",
+  "suggested_shelf_life_seconds": 45,
+  "throughput": {
+    "aggregate_tokens_per_second": 279.292,
+    "mean_tokens_per_second": 53.71,
+    "observed_at": "2026-11-18T11:25:32Z",
+    "runs": 5.2
+  },
+  "volatile": false,
+  "waiting": 0,
+  "window_samples": 5,
+  "window_seconds": 150
+}
