@@ -138,7 +138,18 @@ def test_the_slot_count_is_the_router_ledgers_own():
         waiting_count=len(sim.launching),
     )
     assert snapshot["live_runs"] > 0
-    assert published == snapshot["worker_slots"]
+    # The published figure is the capacity less the live runs, both read from
+    # the same ledger: an independent arithmetic the rule has to obey, unlike a
+    # comparison of the publication against the same snapshot's own field.
+    assert published == max(0, snapshot["capacity"] - snapshot["live_runs"])
+    # The gate queue and the launched-but-not-asking workers are live runs, so
+    # the publication has to have forwarded them: a snapshot taken without the
+    # queue cannot see as many.
+    without_queue = sim.ledger.snapshot(
+        now=sim.t, effective_width=LANE_WIDTH, verdict="open"
+    )
+    assert snapshot["live_runs"] >= len(sim.gate) + len(sim.in_service)
+    assert snapshot["live_runs"] >= without_queue["live_runs"]
     assert sim.rate_at(LANE_WIDTH) == calibration.rate[LANE_WIDTH]
 
 

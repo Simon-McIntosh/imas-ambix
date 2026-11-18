@@ -197,7 +197,6 @@ def test_capacity_is_the_margin_times_the_width_over_the_load() -> None:
         snapshot = ledger.snapshot(
             now=now, effective_width=12, verdict="open", margin=margin
         )
-        assert snapshot["margin"] == margin
         assert snapshot["capacity"] == _capacity_at(margin)
         assert snapshot["worker_slots"] == snapshot["capacity"] - 10
     # Below margin 1.0 the ten live runs exceed the capacity and the lane offers

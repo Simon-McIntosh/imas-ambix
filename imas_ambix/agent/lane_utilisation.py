@@ -37,7 +37,7 @@ import math
 from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -125,57 +125,38 @@ def _clip(interval: RequestInterval, start: float, end: float) -> tuple[float, f
 
 
 def _live_spans(
-    intervals: Sequence[RequestInterval], *, working_horizon: float
+    intervals: Sequence[RequestInterval],
+    *,
+    working_horizon: float = 0.0,
+    starts_at: Literal["admitted", "arrived"] = "admitted",
 ) -> dict[str, tuple[float, float]]:
-    """Each run's live span: first admission to its last end, or the horizon.
+    """Each run's span: its first request to its last request's end.
 
-    A run claims a slot while a request of it is in service, and for the working
-    horizon after its last admission -- the same claim the per-session share
-    makes, so a run that stopped working stops counting as a live run.
+    ``starts_at="admitted"`` is the live span the lane claims a slot over: a run
+    claims from its first admission and for ``working_horizon`` after its last
+    one -- the same claim the per-session share makes, so a run that stopped
+    working stops counting as a live run.
+
+    ``starts_at="arrived"`` with no horizon is the span the run offered its load
+    over: the record's own first and last times, so the horizon is not stretched
+    into a run that has stopped asking, and the wait between asking and being
+    served is inside the span where the caller can take it out.
     """
     first: dict[str, float] = {}
-    last_admission: dict[str, float] = {}
+    last_start: dict[str, float] = {}
     last_end: dict[str, float] = {}
     for interval in intervals:
-        if interval.run_id is None:
+        run = interval.run_id
+        if run is None:
             continue
-        first[interval.run_id] = min(
-            first.get(interval.run_id, interval.admitted), interval.admitted
-        )
-        last_admission[interval.run_id] = max(
-            last_admission.get(interval.run_id, interval.admitted), interval.admitted
-        )
-        last_end[interval.run_id] = max(
-            last_end.get(interval.run_id, interval.ended), interval.ended
-        )
+        opening = interval.arrived if starts_at == "arrived" else interval.admitted
+        first[run] = min(first.get(run, opening), opening)
+        last_start[run] = max(last_start.get(run, opening), opening)
+        last_end[run] = max(last_end.get(run, interval.ended), interval.ended)
     return {
-        run: (first[run], max(last_end[run], last_admission[run] + working_horizon))
+        run: (first[run], max(last_end[run], last_start[run] + working_horizon))
         for run in first
     }
-
-
-def _observed_spans(
-    intervals: Sequence[RequestInterval],
-) -> dict[str, tuple[float, float]]:
-    """Each run's observed span: its first arrival to its last request's end.
-
-    The span the run offered its load over. It starts when the run first
-    reached the gate and ends when its last request ended, so the time a run
-    spent waiting between asking and being served is inside the span and can be
-    taken out of it, and time before it first asked is not counted against it.
-    """
-    first: dict[str, float] = {}
-    last_end: dict[str, float] = {}
-    for interval in intervals:
-        if interval.run_id is None:
-            continue
-        first[interval.run_id] = min(
-            first.get(interval.run_id, interval.arrived), interval.arrived
-        )
-        last_end[interval.run_id] = max(
-            last_end.get(interval.run_id, interval.ended), interval.ended
-        )
-    return {run: (first[run], last_end[run]) for run in first}
 
 
 def offered_load(
@@ -221,7 +202,7 @@ def offered_load(
         service[run] = service.get(run, 0.0) + interval.service_seconds
         waited[run] = waited.get(run, 0.0) + interval.gate_wait_seconds
     duties: list[float] = []
-    for run, (start, end) in _observed_spans(intervals).items():
+    for run, (start, end) in _live_spans(intervals, starts_at="arrived").items():
         live = end - start
         available = live if include_gate_wait else live - waited[run]
         if available <= 0:
