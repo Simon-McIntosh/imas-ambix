@@ -1,0 +1,80 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-18T07:25:26.681Z",
+  "dispatched_at": "2026-11-18T07:25:09Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:102",
+      "id": "done_when-1",
+      "reason": "the plan's own data says most hours are underfed, so the node needs a floor (a minimum number of fed hours, or a named measured window) or the head head of the section is never exercised.",
+      "text": "the fed-hour predicate (\"less than 10% of its time below width to slots not taken\") can be true of no hour in an eight-hour night, and the remaining requirement is only that each hour be listed with its attribution, so the section can be closed while never showing an hour that held 95% of plateau",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:102",
+      "id": "done_when-2",
+      "reason": "a control that is merely recorded beside the result leaves the section's one measure unfalsified.",
+      "text": "the negative control is \"the same reading over 17 November ... is logged beside it\", a comparison that does not have to fail, so it cannot show that the 95%-of-plateau measure ever rejects",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:81",
+      "id": "reasoning-1",
+      "reason": "the published quantity is the endpoint \u00a77 and the dispatchers consume; left ambiguous, the repair can overshoot the lane instead of sizing it.",
+      "text": "\u00a74 defines \"capacity\" as margin \u00d7 width \u00f7 offered load but never states which published field carries it, while the `worker_slots` field it names publishes spare slots (\"how many more workers the router would admit now\", `imas_ambix/agent/router.py`, `llm_watch` band), so a node can publish a total worker target into a field every dispatcher reads as headroom",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:77",
+      "id": "reasoning-2",
+      "reason": "the two sections that the followup starts first depend on an input that does not exist in the tree, so the nodes must either hunt outside the repository or write tests against aggregates that are not the receipts the calibration describes.",
+      "text": "\u00a73's test calibrates \"from a committed excerpt of receipts covering 18 November 04:45 to 06:40 UTC\" and \u00a76 cross-checks \"the committed receipt excerpts\", but no such excerpt is committed anywhere in the repository (`git ls-files` and a filesystem search find only the derived calibration/log files), and the plan names no source for it",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:82",
+      "id": "done_when-3",
+      "reason": "the analytic settle (margin \u00d7 width \u00f7 offered load) is recoverable from \u00a74 itself, so a worker can compute the band; this is a clarity gap rather than a wrong path.",
+      "text": "\u00a74's simulation arm holds the worker count \"within 15% of its settled value\" without defining the settled value or the window over which it is measured, so the 15% band has no computable reference",
+      "type": "done_when",
+      "would_change": false
+    }
+  ],
+  "plan_commit": "c951178e1c85c920dc68617f28c3fd98e6f03444",
+  "plan_fingerprint": "06499b704091b300bd9992dd67e86c3f328e0f79f8b270076a433244cb7854d5",
+  "plan_slug": "the-local-lane-delivers-its-plateau",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261118T065336457360-plan-review-of-the-local-lane-delivers-its-plateau",
+  "reviewed_blob_sha": "d005c0d7036763d74e9f3aaada61add02c583a44",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a73 and \u00a76 rest on \"committed receipt excerpts\" that the repository does not contain (`docs/evidence/fragments/the-local-lane-delivers-its-plateau/` holds only derived `.log`/`.json` and scripts); the cited logs and figures all resolve.",
+    "done_when": "a finding \u2014 \u00a78's measure is a universal quantifier over fed hours, so a night in which every hour is underfed satisfies it with no demonstration.",
+    "evidence_paths": "pass \u2014 every section writes its result to `docs/evidence/fragments/the-local-lane-delivers-its-plateau/s<N>.html`, a committed evidence path, and \u00a78 names the `rigel` job.",
+    "naming": "pass \u2014 the plan's own labels (`\u00a73 simulation`, `s3`) stay in plan prose; the field names it uses are existing lane-document records, not tracker labels.",
+    "reasoning": "a finding \u2014 \u00a74 never says which document field holds \"capacity\", and the field it names, `worker_slots`, currently publishes spare admission slots, so the slot count \u00a77 and dispatch preflight read could flip from headroom to a worker target; \u00a71's root-cause claims otherwise match the cited logs (11.10 in service, 434 tok/s, median 2.52 s, 232/113 tok/s, 227 tok/s mean and 10 hours under 200 on 17 November all verified).",
+    "single_goal": "pass \u2014 each implementable section names one deliverable (instrument, slot rule, wait bound, utilisation fields, panel row, night record).",
+    "wiring": "pass \u2014 the four declared section dependencies (s4\u2192s3, s5\u2192s4, s7\u2192s6, s8\u2192s5+s6) match what each section needs, the followup sentence agrees with them, and plan-after `local-lane-admission-control` resolves."
+  },
+  "section_digests": {
+    "_document": "13216356f35e599701994f523984f872e0fb46871f056399ba39d9f61c362625",
+    "s1": "ddc835fd303090d98490a5c9d342cca9a24e4efe1dd156a993b609bc3faeb6c2",
+    "s2": "423e76dd6883c004280c9ce00b01ba4ccced81a8107dff681fd0fac2e27ff802",
+    "s3": "5b66f81f6e808c1d686325d4e411cd8c5b13532173929e9b1e6b895f6dc76a13",
+    "s4": "0ff0f7f074e888abbdfeab57737d9aa4016f713fb33e7c5e3981f73e4edeed54",
+    "s5": "3f2ae7e0923eadf4e50c7dd998cafd9240deac32eb30a27a79d4bab918e6ea4d",
+    "s6": "a45231a90dc46ae2c16cc27284ee9df17e51bfce69eeee8b54ffb65a1f480d00",
+    "s7": "6498f3d9a8b765fe02f95daf306c5eebe1f24721973abcbe828238bcf8dfb6ef",
+    "s8": "d4ba166041eba11e63ac4d457af8c8bf8e3a4a652c677f6c36d49c72a4be5ab0"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T07:41:20.489399+00:00",
+  "total": null
+}
