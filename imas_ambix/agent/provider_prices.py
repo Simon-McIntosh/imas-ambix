@@ -412,8 +412,6 @@ def _declares_fewer_than_eight_bits(quantization: object) -> bool:
     return match is not None and int(match.group(1)) < 8
 
 
-
-
 def _observations(history: object) -> list[dict]:
     """The rows to read, from a path or an already-read history."""
     if isinstance(history, (str, Path)):
