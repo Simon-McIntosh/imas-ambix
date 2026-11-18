@@ -1,0 +1,31 @@
+<section data-reckon="fragment" data-node="s6">
+  <h3 id="s6-utilisation-in-the-lane-document">Window utilisation and the split of time below width</h3>
+  <p>The lane document's <code>admission</code> block carries a <code>utilisation</code> object with two windows — the averaging window and the last hour — each stating the mean requests in service, the share of time at the gate width, the delivered completion-token rate, the plateau rate estimated from the same requests, and a partition of the time spent below width into <code>slots_offered_not_taken_seconds</code> and <code>no_slots_offered_seconds</code>. Both windows are cut from one record of request intervals: the admission ledger the slot figures already read, which now also records when each request arrived at the gate and the completion tokens its relay accounted, and retains intervals for the longer of the slot window and an hour. <code>mean_in_service</code> is published beside the block as the same window figure.</p>
+  <p>A slot is offered at an instant while the capacity its own window's offered load implies exceeds the runs live then; a run is live while one of its requests is in service or it was admitted within the working horizon. A paused gate offers none, and the pause is recorded when it happens because publication runs after it; the same pause record is what carries a pause that has since ended. Pool composition drops the block rather than copying one engine's figures under a pool's name.</p>
+
+  <h3 id="s6-replayed-windows">Replayed windows of 18 November</h3>
+  <p>Committed receipt excerpts, <code>tests/data/lane_receipts_2026-11-18.jsonl.gz</code> (caller address removed), replayed through the router's own <code>intervals_from_rows</code> and <code>utilisation_block</code> with width 12. The comparison values are those the evidence scripts record in this directory.</p>
+  <table>
+    <thead>
+      <tr><th>window (UTC)</th><th>mean in service</th><th>recorded</th><th>share at width</th><th>recorded</th><th>delivered tok/s</th><th>recorded</th><th>plateau tok/s</th><th>offered / no slots (s)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>04:45–06:40 fed</td><td>11.10</td><td>11.10</td><td>68.2%</td><td>68.2%</td><td>433.2</td><td>434</td><td>480.7</td><td>1890.1 / 300.7</td></tr>
+      <tr><td>02:00–04:45 starved</td><td>1.67</td><td>1.66</td><td>0.3%</td><td>0.3%</td><td>112.9</td><td>113</td><td>465.3</td><td>9847.5 / 0.0</td></tr>
+    </tbody>
+  </table>
+  <p>In the starved window 9847.5 s of the 9879 s observed span lies below width, and all of it is attributed to slots offered and not taken — the lane was underfed, not throttled. In both windows the two parts sum to the below-width time, and the mean equals the figure the same ledger's block reports. The plateau estimate is the best bin of the window's own requests, which is why the starved window still states roughly the lane's plateau.</p>
+
+  <h3 id="s6-gate">Gate</h3>
+  <p>Run as a job on <code>all_debug</code> (job 1326113), log <code>logs/s6-gate.log</code> in the run directory, whose head names revision 6c90c668 and the tree:</p>
+  <pre><code>uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_utilisation.py tests/test_agent_router_service.py … (thirteen files)
+199 passed, 1 skipped in 24.49s
+uv run --no-sync ruff check imas_ambix tests              All checks passed!
+uv run --no-sync ruff format --check imas_ambix/agent/lane_utilisation.py imas_ambix/agent/router.py tests/test_agent_lane_utilisation.py
+3 files already formatted
+EXIT=0</code></pre>
+  <p><code>tests/test_llm_watch.py</code> and <code>tests/test_gpu_watch.py</code> were excluded from the gate because eight of their colour-rendering assertions fail identically at the base revision 31a74b6e on the same partition (baseline log <code>logs/s6-baseline.log</code>, 8 failed / 71 passed, the same eight test ids); they are recorded as outside this node's scope.</p>
+
+  <h3 id="s6-negative-control">Negative control</h3>
+  <p>The pause guard was mutated (<code>if paused &gt; 0 or live_runs &gt;= capacity</code> reduced to <code>if live_runs &gt;= capacity</code>) and <code>test_a_paused_gate_attributes_its_shortfall_to_no_slots_offered</code> was run as job 1326102: it stopped at <code>assert 600.0 == 0.0</code>, naming <code>slots_offered_not_taken_seconds</code>, and the log ends <code>EXIT=1</code> (<code>logs/s6-negative-control.log</code>). The mutation was reverted and the tree verified clean before the gate revision was committed.</p>
+</section>

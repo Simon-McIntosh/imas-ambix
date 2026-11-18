@@ -27,6 +27,12 @@ from imas_ambix.agent.lane import (
     engine_headroom,
     lane_headroom,
 )
+from imas_ambix.agent.lane_utilisation import (
+    DEFAULT_HOUR_SECONDS,
+    DEFAULT_MARGIN,
+    RequestInterval,
+    utilisation_block,
+)
 from imas_ambix.agent.request_receipts import (
     DEFAULT_MAX_ROWS_PER_S,
     DEFAULT_WINDOW_S,
@@ -309,15 +315,30 @@ class _BusyInterval:
     session the request declared, or None when it declared none, and it is what
     the per-session share divides between. It is carried as declared rather than
     resolved here, so the share is computed from what the caller reported.
+
+    ``arrived`` is when the caller reached the gate, so the time it spent
+    waiting there is the difference from ``started``, and ``completion_tokens``
+    is what its relay accounted. Both exist for the utilisation figures, which
+    read the load a run offers as its service time over its live span less its
+    gate wait, and its delivered tokens over the window.
     """
 
-    __slots__ = ("run_id", "session", "started", "ended")
+    __slots__ = (
+        "run_id",
+        "session",
+        "started",
+        "ended",
+        "arrived",
+        "completion_tokens",
+    )
 
     def __init__(self, run_id: str | None, session: str | None, started: float) -> None:
         self.run_id = run_id
         self.session = session
         self.started = started
         self.ended: float | None = None
+        self.arrived = started
+        self.completion_tokens: int | None = None
 
 
 class _AdmissionLedger:
@@ -339,11 +360,19 @@ class _AdmissionLedger:
         window_seconds: float = ADMISSION_WINDOW_SECONDS,
         min_live_runs: int = MIN_LIVE_RUNS,
         min_history_seconds: float = MIN_HISTORY_SECONDS,
+        hour_seconds: float = DEFAULT_HOUR_SECONDS,
     ) -> None:
         self._window = window_seconds
         self._min_live_runs = min_live_runs
         self._min_history = min_history_seconds
+        # The record outlives the slot window because the utilisation block
+        # publishes the last hour beside the averaging window, and an hour of
+        # intervals cannot be cut from a ledger that dropped them at fifteen
+        # minutes. The slot figures still read only their own window: prune
+        # keeps enough for both, and the snapshot filters by its own window.
+        self._hour = max(window_seconds, hour_seconds)
         self._intervals: list[_BusyInterval] = []
+        self._pauses: list[tuple[float, float | None]] = []
         self._first_admission: float | None = None
 
     def admit(
@@ -352,27 +381,106 @@ class _AdmissionLedger:
         *,
         session: str | None = None,
         now: float,
+        arrived: float | None = None,
     ) -> _BusyInterval:
         """Record one admitted request and return the handle that releases it."""
         if self._first_admission is None:
             self._first_admission = now
         interval = _BusyInterval(run_id, session, now)
+        if arrived is not None:
+            interval.arrived = min(arrived, now)
         self._intervals.append(interval)
         self._prune(now)
         return interval
 
-    def release(self, interval: _BusyInterval, *, now: float) -> None:
+    def release(
+        self,
+        interval: _BusyInterval,
+        *,
+        now: float,
+        completion_tokens: int | None = None,
+    ) -> None:
         """Stamp a request's release. Idempotent, so a double release cannot lie."""
         if interval.ended is None:
             interval.ended = max(now, interval.started)
+            interval.completion_tokens = completion_tokens
+
+    def note_paused(self, paused: bool, *, now: float) -> None:
+        """Record the gate's pause state so the split reads what it offered.
+
+        The utilisation split must attribute a paused window's time below width
+        to no slots offered, and a pause is a past event by the time a window is
+        published. A pause therefore has to be recorded as it happens; reading
+        the current flag at publication would label every earlier segment with
+        the state of the last one.
+        """
+        if self._pauses and self._pauses[-1][1] is None:
+            if paused:
+                return
+            self._pauses[-1] = (self._pauses[-1][0], max(now, self._pauses[-1][0]))
+            return
+        if paused:
+            self._pauses.append((now, None))
+
+    def _paused_spans(self, now: float) -> list[tuple[float, float]]:
+        return [
+            (opened, now if closed is None else closed)
+            for opened, closed in self._pauses
+            if (now if closed is None else closed > opened)
+        ]
 
     def _prune(self, now: float) -> None:
-        cutoff = now - self._window
+        cutoff = now - max(self._window, self._hour)
         self._intervals = [
             interval
             for interval in self._intervals
             if interval.ended is None or interval.ended > cutoff
         ]
+        self._pauses = [
+            (opened, closed)
+            for opened, closed in self._pauses
+            if closed is None or closed > cutoff
+        ]
+
+    def utilisation(
+        self,
+        *,
+        now: float,
+        effective_width: int,
+        paused: bool = False,
+        margin: float = DEFAULT_MARGIN,
+    ) -> dict[str, object]:
+        """The lane's utilisation over the averaging window and the last hour.
+
+        Computed from the same intervals the slot figures read, so a reader can
+        reconcile the mean in service with the runs the capacity was sized from
+        rather than with a second, differently-shaped measurement. The gate's
+        pause is noted here because this is the one place that publishes: a
+        pause seen only after it ended labels every earlier segment with the
+        state of the last one.
+        """
+        self.note_paused(paused, now=now)
+        intervals = [
+            RequestInterval(
+                arrived=interval.arrived,
+                admitted=interval.started,
+                ended=now if interval.ended is None else interval.ended,
+                completion_tokens=interval.completion_tokens,
+                run_id=interval.run_id,
+            )
+            for interval in self._intervals
+        ]
+        return utilisation_block(
+            intervals,
+            width=effective_width,
+            now=now,
+            window_seconds=self._window,
+            margin=margin,
+            hour_seconds=self._hour,
+            paused_spans=self._paused_spans(now),
+            working_horizon=WORKING_HORIZON_SECONDS,
+            horizon=self._first_admission,
+        )
 
     def snapshot(
         self, *, now: float, effective_width: int, verdict: str
@@ -844,13 +952,28 @@ class _GenerationGate:
         window is too thin to support them.
         """
         queue, settings, verdict = self._queue_snapshot()
+        now = time.monotonic()
         queue.update(
             self._admissions.snapshot(
-                now=time.monotonic(),
+                now=now,
                 effective_width=settings.width,
                 verdict=verdict,
             )
         )
+        utilisation = self._admissions.utilisation(
+            now=now,
+            effective_width=settings.width,
+            paused=verdict == "paused",
+        )
+        # The window mean in service is published beside the utilisation block
+        # rather than only inside it: the block answers how full the lane ran,
+        # and the mean is the occupancy the slots were sized against, so a
+        # reader comparing the two must see one record rather than two.
+        window = utilisation["window"]
+        queue["mean_in_service"] = (
+            window["mean_in_service"] if isinstance(window, dict) else None
+        )
+        queue["utilisation"] = utilisation
         return queue
 
     def settings(self) -> _GateSettings:
@@ -1575,7 +1698,10 @@ class _GenerationGate:
                             disconnect_task=disconnect_task,
                             gate_wait_s=max(0.0, time.monotonic() - arrived_at),
                             busy=self._admissions.admit(
-                                run_id, session=session, now=time.monotonic()
+                                run_id,
+                                session=session,
+                                now=time.monotonic(),
+                                arrived=arrived_at,
                             ),
                         )
 
@@ -1613,7 +1739,10 @@ class _GenerationGate:
                                     disconnect_task=disconnect_task,
                                     gate_wait_s=max(0.0, time.monotonic() - arrived_at),
                                     busy=self._admissions.admit(
-                                        run_id, session=session, now=time.monotonic()
+                                        run_id,
+                                        session=session,
+                                        now=time.monotonic(),
+                                        arrived=arrived_at,
                                     ),
                                 )
                     else:
@@ -1639,17 +1768,27 @@ class _GenerationGate:
                 disconnect_task.cancel()
                 await asyncio.gather(disconnect_task, return_exceptions=True)
 
-    async def release(self, busy: _BusyInterval | None = None) -> None:
+    async def release(
+        self,
+        busy: _BusyInterval | None = None,
+        *,
+        completion_tokens: int | None = None,
+    ) -> None:
         """Return one acquired slot and wake the FIFO head.
 
         ``busy`` is the occupancy the matching admission opened, if any, so the
         released request's time is attributed to its run rather than to the
         process as a whole. It is optional so a caller that holds no handle --
         a test, or a slot taken through a path predating the ledger -- still
-        releases correctly, recording no occupancy.
+        releases correctly, recording no occupancy. ``completion_tokens`` is
+        what the relay accounted; None means it accounted none, which the
+        utilisation block reads as a request with no delivered rate rather than
+        as one that delivered nothing.
         """
         if busy is not None:
-            self._admissions.release(busy, now=time.monotonic())
+            self._admissions.release(
+                busy, now=time.monotonic(), completion_tokens=completion_tokens
+            )
         async with self._condition:
             if self._in_flight <= 0:
                 raise RuntimeError("generation gate released without an acquired slot")
@@ -2562,6 +2701,11 @@ class RouterApp:
         upstream, card = resolved[0]
         relay_body = self._clamp_output_tokens(payload, body, card)
 
+        # The relay's own accounting is handed in so the released slot carries
+        # the completion tokens the request produced: the utilisation block
+        # divides them by the window, and a second, differently-shaped count
+        # read from the receipt file would be a different record.
+        accounting = StreamAccounting()
         try:
             await self._relay(
                 scope,
@@ -2578,10 +2722,14 @@ class RouterApp:
                 watch_cut=admission.outcome == "acquired",
                 gate=gate,
                 routing=routing,
+                accounting=accounting,
             )
         finally:
             if admission.outcome == "acquired":
-                await gate.release(admission.busy)
+                await gate.release(
+                    admission.busy,
+                    completion_tokens=accounting.completion_tokens,
+                )
 
     def initiate_shutdown(self) -> None:
         """Answer every request the gates are holding, before uvicorn closes.
@@ -3233,6 +3381,7 @@ class RouterApp:
         gate: _GenerationGate | None = None,
         routing: str | None = None,
         gate_engine: str | None = None,
+        accounting: StreamAccounting | None = None,
     ) -> None:
         # The gate this request was admitted at, so a cut or a shutdown is read
         # from that engine's own control entry rather than from a peer's.
@@ -3267,7 +3416,11 @@ class RouterApp:
         if query:
             target = f"{target}?{query.decode('ascii')}"
 
-        accounting = StreamAccounting()
+        # Handed in by the caller when it also wants the relay's own token count
+        # for the released slot's utilisation. A relay running without one makes
+        # its own, so the accounting is the relay's either way.
+        if accounting is None:
+            accounting = StreamAccounting()
         began = time.perf_counter()
         # Anything that is not a 2xx reads as failed, so a request the engine
         # refused is recorded as such rather than dropped or counted as a

@@ -1222,6 +1222,12 @@ def _merge_admission(documents: list[dict]) -> dict[str, object]:
     if not admissions:
         return {}
     merged = dict(admissions[0])
+    # Window utilisation is one gate's own record of its own intervals: a pool's
+    # mean in service is not the first engine's, and their shares at width do
+    # not add. The merged block therefore carries none rather than one engine's
+    # figure under a pool's name, and a reader that needs it reads the lane.
+    merged.pop("utilisation", None)
+    merged.pop("mean_in_service", None)
     for name in ("headroom", "waiting", "live_runs"):
         merged[name] = sum(
             _numeric(admission.get(name)) or 0 for admission in admissions
