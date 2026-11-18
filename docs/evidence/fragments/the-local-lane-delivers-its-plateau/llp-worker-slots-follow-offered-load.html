@@ -6,5 +6,5 @@
     <li><code>imas_ambix/agent/lane_sim.py</code> — the simulation runs at a margin, claims the gate queue and its own launched-but-not-asking workers, holds its pool within the capacity it published, and reads the pool in ten-minute buckets.</li>
     <li><code>imas_ambix/agent/lane.py</code>, <code>imas_ambix/agent/live_panel.py</code> — the merged lane document sums the engines' capacities and publishes the margin when they agree; the panel's worker-slot fields include both.</li>
   </ul>
-  <p><strong>Result.</strong> The ledger, the plateau and the wait bounds meet the section's measures; five of six stability configurations hold within the 15% band. The starved workload at margin 1.25 is 20% low in one ten-minute bucket because its capacity is still rising an hour in. Details and the exact figures are in <code>s4.html</code>.</p>
+  <p><strong>Result.</strong> The ledger, the plateau and the wait bounds meet the section's measures at the default margin of 1.5: the rule delivers 445.7 tok/s on the fed window and 490.3 on the starved one, 100.0% and 101.6% of their plateaus, at 90th-percentile gate waits of 9.50 s and 10.50 s, and all six stability configurations hold within the 15% band. At 1.25 the starved window reached only 95.9-98.9% of its plateau across seeds. Details and the exact figures are in <code>s4.html</code>.</p>
 </section>
