@@ -1,0 +1,108 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:942 imports provider_prices at line 67 and calls provider_median_in_force",
+    "imas_ambix/agent/watch.py:981 calls provider_median_in_force"
+  ],
+  "completed_at": "2026-11-18T22:01:04.228Z",
+  "dispatched_at": "2026-11-18T21:59:36Z",
+  "evidence_limits": "The reviewed manifest carries no baseline_suite or after_suite block; added_failure_count and added_failure_ids are derived from the run's own arms and gate logs: logs/s7-baseline.log at d1c9b901 (93 passed, EXIT=0, no failing ids) and logs/s7-gate.log at 05d557ef (98 passed, EXIT=0, no failing ids), so 0 added failures. The gained diff is c0b71c0..85404539: two files, a whitespace hunk and a doc sentence. I re-ran no test suite; I re-ran 'ruff format --check' on the four pre-existing offenders in both preserved scratch trees and saw the identical four files at base and head, and provider_prices.py passes at head.",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/provider_prices.py",
+      "line": "413",
+      "severity": "non-blocking",
+      "text": "the regression this commit repairs is caught by nothing durable, because the repository gate is 'ruff check imas_ambix tests' and the only guard against the surplus blank lines returning is an ad-hoc 'ruff format --check' recorded in this run's logs, so the next deleted helper can reintroduce it silently."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html",
+      "line": "16",
+      "severity": "non-blocking",
+      "text": "the revision sentence is produced by capture_s7.py, which lives only in the run directory and is not committed, and no test or script in the repository reads the fragment, so a later code change leaves the capture naming a stale revision with nothing failing."
+    },
+    {
+      "file": "logs/s7-gate.log",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "the head arm ran at 05d557ef, one commit before the landed head 85404539, so the recorded suite does not measure the exact landed revision; the only intervening change is the doc fragment no test imports."
+    }
+  ],
+  "item_verdicts": [
+    {
+      "item": "goal",
+      "verdict": "the source node's goal is \u00a77's lane row showing the window figures beside the instant ones, and the two gained commits leave that row's values and labels alone while removing imas_ambix/agent/provider_prices.py's surplus blank lines at 05d557ef and renaming the capture's revision at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16."
+    },
+    {
+      "item": "done_when",
+      "verdict": "\u00a77's done_when is a render test feeding 7 in service, window mean 11.1, median gate wait 2.5 s and nothing waiting, a no-window negative control and a stored capture; tests/test_llm_watch.py:586 carries those four values with instant/window labels, tests/test_llm_watch.py:606 asserts the window is marked unavailable rather than zero, and logs/s7-gate.log records 98 passed with EXIT=0 one docs-only commit before the landed head."
+    },
+    {
+      "item": "write_paths",
+      "verdict": "the node declared imas_ambix/agent, tests, docs/evidence/fragments/the-local-lane-delivers-its-plateau and docs/figures/the-local-lane-delivers-its-plateau/llp-the-live-panel-shows-the-window-beside-the-instant; the two gained files imas_ambix/agent/provider_prices.py and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html, and all 20 paths of d1c9b901..85404539, sit inside them."
+    },
+    {
+      "item": "manifest",
+      "verdict": "the run manifest records status complete, baseline 93 passed with EXIT=0 at d1c9b901, head 98 passed with EXIT=0 at 05d557ef, red 5 failed with EXIT=1 over the base modules, estimator_suites 106 passed with EXIT=0, and per-path ruff check and ruff format --check results, which I re-ran over the four pre-existing format offenders in both preserved scratch trees and saw identical at base and head."
+    },
+    {
+      "item": "diff",
+      "verdict": "commit by commit in c0b71c0..85404539, 05d557ef removes exactly the two surplus blank lines between _declares_fewer_than_eight_bits and _observations at imas_ambix/agent/provider_prices.py:412, resolving the earlier review's blocking finding at provider_prices.py:415, and 85404539 rewrites only the revision string at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 from 5e5ad0ac to 05d557ef."
+    },
+    {
+      "item": "call_sites",
+      "verdict": "verified 2 production call site(s)"
+    }
+  ],
+  "justifications": {
+    "durability": "nothing in the two commits adds or changes a test, and the blank-line regression 05d557ef repairs is caught only by the run-local 'ruff format --check' recorded in logs/s7-nc-format-parent.log, not by the repository's 'ruff check imas_ambix tests' gate.",
+    "evidence": "logs/s7-gate.log records 98 passed with EXIT=0 and logs/s7-baseline.log 93 with EXIT=0 while logs/s7-red-arm.log shows 5 failed with EXIT=1 over the base modules, but the head arm ran at 05d557ef, one commit before the landed head 85404539.",
+    "fit": "imas_ambix/agent/provider_prices.py:412 now carries exactly the two blank lines ruff format requires, and the sentence at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 matches the fragment's surrounding prose.",
+    "goal_fidelity": "the gained diff leaves the row's four required values and their instant/window labels intact at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:19 and only names the revision that produced them.",
+    "reuse": "the two gained commits add no function, class or module - one whitespace hunk and one doc sentence - so there is nothing that duplicates a repository owner, and imas_ambix/agent/median.py is untouched.",
+    "scope_discipline": "git diff c0b71c0..85404539 changes exactly imas_ambix/agent/provider_prices.py and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html, both inside the declared write paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the source node's goal is \u00a77's lane row showing the window figures beside the instant ones, and the two gained commits leave that row's values and labels alone while removing imas_ambix/agent/provider_prices.py's surplus blank lines at 05d557ef and renaming the capture's revision at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16.\nVERDICT done_when: \u00a77's done_when is a render test feeding 7 in service, window mean 11.1, median gate wait 2.5 s and nothing waiting, a no-window negative control and a stored capture; tests/test_llm_watch.py:586 carries those four values with instant/window labels, tests/test_llm_watch.py:606 asserts the window is marked unavailable rather than zero, and logs/s7-gate.log records 98 passed with EXIT=0 one docs-only commit before the landed head.\nVERDICT write_paths: the node declared imas_ambix/agent, tests, docs/evidence/fragments/the-local-lane-delivers-its-plateau and docs/figures/the-local-lane-delivers-its-plateau/llp-the-live-panel-shows-the-window-beside-the-instant; the two gained files imas_ambix/agent/provider_prices.py and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html, and all 20 paths of d1c9b901..85404539, sit inside them.\nVERDICT manifest: the run manifest records status complete, baseline 93 passed with EXIT=0 at d1c9b901, head 98 passed with EXIT=0 at 05d557ef, red 5 failed with EXIT=1 over the base modules, estimator_suites 106 passed with EXIT=0, and per-path ruff check and ruff format --check results, which I re-ran over the four pre-existing format offenders in both preserved scratch trees and saw identical at base and head.\nVERDICT diff: commit by commit in c0b71c0..85404539, 05d557ef removes exactly the two surplus blank lines between _declares_fewer_than_eight_bits and _observations at imas_ambix/agent/provider_prices.py:412, resolving the earlier review's blocking finding at provider_prices.py:415, and 85404539 rewrites only the revision string at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 from 5e5ad0ac to 05d557ef.\nCALL_SITES: imas_ambix/agent/watch.py:942 imports provider_prices at line 67 and calls provider_median_in_force, imas_ambix/agent/watch.py:981 calls provider_median_in_force\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the gained diff leaves the row's four required values and their instant/window labels intact at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:19 and only names the revision that produced them.\nSCORE evidence: 16\nJUSTIFICATION evidence: logs/s7-gate.log records 98 passed with EXIT=0 and logs/s7-baseline.log 93 with EXIT=0 while logs/s7-red-arm.log shows 5 failed with EXIT=1 over the base modules, but the head arm ran at 05d557ef, one commit before the landed head 85404539.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff c0b71c0..85404539 changes exactly imas_ambix/agent/provider_prices.py and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html, both inside the declared write paths.\nSCORE durability: 11\nJUSTIFICATION durability: nothing in the two commits adds or changes a test, and the blank-line regression 05d557ef repairs is caught only by the run-local 'ruff format --check' recorded in logs/s7-nc-format-parent.log, not by the repository's 'ruff check imas_ambix tests' gate.\nSCORE fit: 20\nJUSTIFICATION fit: imas_ambix/agent/provider_prices.py:412 now carries exactly the two blank lines ruff format requires, and the sentence at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 matches the fragment's surrounding prose.\nSCORE reuse: 20\nJUSTIFICATION reuse: the two gained commits add no function, class or module - one whitespace hunk and one doc sentence - so there is nothing that duplicates a repository owner, and imas_ambix/agent/median.py is untouched.\nFINDING imas_ambix/agent/provider_prices.py:413 non-blocking: the regression this commit repairs is caught by nothing durable, because the repository gate is 'ruff check imas_ambix tests' and the only guard against the surplus blank lines returning is an ad-hoc 'ruff format --check' recorded in this run's logs, so the next deleted helper can reintroduce it silently.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 non-blocking: the revision sentence is produced by capture_s7.py, which lives only in the run directory and is not committed, and no test or script in the repository reads the fragment, so a later code change leaves the capture naming a stale revision with nothing failing.\nFINDING logs/s7-gate.log:1 non-blocking: the head arm ran at 05d557ef, one commit before the landed head 85404539, so the recorded suite does not measure the exact landed revision; the only intervening change is the doc fragment no test imports.\n",
+  "review_run_id": "r-20261118T213325130988-review-of-llp-the-live-panel-shows-the-window-beside-the-instant-8540453969fd",
+  "reviewed_base_sha": "c0b71c0ac687508806e42537d0fe21282a36584d",
+  "reviewed_head_sha": "8540453969fdedfa0528092fd5657834aaaa8bd2",
+  "reviewed_run_id": "r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant",
+  "reviewed_worker_commits": [
+    "05d557efd4b4c98d1b316f7b7102feac21ce6107",
+    "8540453969fdedfa0528092fd5657834aaaa8bd2"
+  ],
+  "scores": {
+    "durability": 11,
+    "evidence": 16,
+    "fit": 20,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_evidence": {
+    "after": {
+      "command": "PYTHONPATH=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/scratch/head-05d557efd4b4c98d1b316f7b7102feac21ce6107 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_llm_watch.py tests/test_live_panel.py tests/test_agent_lane_utilisation.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/logs/s7-gate.log",
+      "revision": "05d557efd4b4c98d1b316f7b7102feac21ce6107"
+    },
+    "baseline": {
+      "command": "PYTHONPATH=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/scratch/base-d1c9b901efb96d3a7b827b2a2c5261347f9e30c7 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_llm_watch.py tests/test_live_panel.py tests/test_agent_lane_utilisation.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/logs/s7-baseline.log",
+      "revision": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7"
+    }
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T22:27:33.464306+00:00",
+  "total": 106
+}
