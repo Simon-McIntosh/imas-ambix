@@ -9,9 +9,13 @@ rule, and the two contracts callers here need are named once each:
 
 - :func:`median` is the standard library's -- it raises on an empty series,
   which is right for a caller that has already established it has a value.
-- :func:`median_or_none` is the same estimator for a caller reading not-yet-
-  measured figures, where an empty series means "no value" and a zero would be
-  a measurement that was never taken.
+- :func:`median_or_none` is that estimator behind an empty check, for a
+  caller reading not-yet-measured figures, where an empty series means "no
+  value" and a zero would be a measurement that was never taken.
+
+The estimator itself is spelled once, in :func:`median`: the second contract
+calls the first rather than calling the standard library again, so no reader
+here can quietly come to prefer different arithmetic.
 """
 
 from __future__ import annotations
@@ -33,4 +37,4 @@ def median(values: Iterable[float]) -> float:
 def median_or_none(values: Iterable[float]) -> float | None:
     """The median of *values*, or ``None`` when there is nothing to average."""
     values = list(values)
-    return float(statistics.median(values)) if values else None
+    return median(values) if values else None

@@ -38,3 +38,20 @@ def test_an_empty_series_is_none_only_when_the_caller_asks_for_it() -> None:
     assert median_or_none([]) is None
     with pytest.raises(ValueError):
         median([])
+
+
+def test_the_two_contracts_are_one_estimator() -> None:
+    """Both entry points answer from the same arithmetic.
+
+    The none-contract exists for a reader whose series may be unmeasured; it
+    is not a second estimator. Feeding both the same series has to give the
+    same figure, because a reader comparing a lane median against a benchmark
+    median is promised exactly that.
+    """
+    series = [3.0, 1.0, 4.0, 1.0, 5.0, 9.0]
+    assert median_or_none(series) == pytest.approx(median(series))
+
+
+def test_the_estimator_averages_the_middles_of_this_series() -> None:
+    """A six-value series: the two middles are 3.0 and 4.0."""
+    assert median([3.0, 1.0, 4.0, 1.0, 5.0, 9.0]) == pytest.approx(3.5)
