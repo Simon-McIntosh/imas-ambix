@@ -1,0 +1,138 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/llm_watch.py:1368 lane_section -> bands",
+    "imas_ambix/agent/llm_watch.py:645 bands -> serving_band",
+    "imas_ambix/agent/gpu_watch/panels.py:287 gpu_watch lane_section -> llm_watch.lane_section",
+    "imas_ambix/agent/live_panel.py:970 lane_block in the panel view document",
+    "imas_ambix/agent/router.py:473 utilisation_block publishes the window the row draws"
+  ],
+  "completed_at": "",
+  "dimension_dispositions": {
+    "reuse": {
+      "kind": "folded",
+      "node": "repair-of-llp-the-live-panel-shows-the-window-beside-the-instant-ab3dd7b56989",
+      "recorded_at": "2026-11-18T19:47:21.677271+00:00"
+    }
+  },
+  "dispatched_at": "2026-11-18T16:58:19Z",
+  "evidence_limits": "The after arm ran from the worktree before the commit, so its header names base d1c9b901; the tree is clean at head 226f1c97 and the 97-test count against 93 at base shows the added tests were collected. The base and red scratch trees under /tmp no longer exist. The gate log records no SLURM job id or partition; the run's attempt stream shows the arm ran as a step of job 1319171.",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/lane_utilisation.py",
+      "id": "f84c56ef0b2",
+      "line": "455",
+      "severity": "non-blocking",
+      "text": "non-blocking: _median re-implements the median owned at imas_ambix/agent/bench_report.py:263 and imas_ambix/agent/provider_prices.py:413, and taken from statistics.median at imas_ambix/agent/decode_bins.py:343, adding a fourth copy of the estimator and its even-count rule."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html",
+      "id": "f3160d0b171",
+      "line": "16",
+      "severity": "non-blocking",
+      "text": "non-blocking: the capture is attributed to revision d1c9b901, which does not carry the change and whose lane_block cannot copy a utilisation block, so the fragment names a revision that cannot draw the row it shows; the rendering belongs to 226f1c97ddc01b4abde4be3f80301431178787ff."
+    },
+    {
+      "file": "logs/s7-gate.log",
+      "id": "fe77d9de709",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the after arm's header names revision d1c9b901 while the tree it ran over carried the change that became 226f1c97, because gate.sh took git rev-parse HEAD before the commit, so the 97-passed receipt cannot be tied to the committed diff by its own header."
+    },
+    {
+      "file": "logs/s7-baseline.log",
+      "id": "fdfbf3337e3",
+      "line": "2",
+      "severity": "non-blocking",
+      "text": "non-blocking: the base and red arms were extracted to bare /tmp/base-pure and /tmp/base-s7 rather than under $TMPDIR, so neither scratch tree survives the allocation and the base measurement cannot be re-inspected."
+    }
+  ],
+  "item_verdicts": [
+    {
+      "item": "goal",
+      "verdict": "the node draws the lane's window figures beside its instant figures; imas_ambix/agent/llm_watch.py:461 pairs in use with mean, waiting with median s and tok/s with deliv %, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:19 shows the rendered row."
+    },
+    {
+      "item": "done_when",
+      "verdict": "the done_when defines a render test carrying 7 in service against width 12, a window mean of 11.1, a median gate wait of 2.5 s and nothing waiting, plus a no-window negative control; tests/test_llm_watch.py:586 and tests/test_llm_watch.py:607 assert those values and labels, and logs/s7-gate.log records 97 passed with EXIT=0."
+    },
+    {
+      "item": "write_paths",
+      "verdict": "the node declared imas_ambix/agent, tests, the s7 evidence fragment directory and a figures directory; every one of the 16 changed paths in d1c9b90..226f1c9 is inside them."
+    },
+    {
+      "item": "manifest",
+      "verdict": "the run manifest records status complete, commit 226f1c97ddc01b4abde4be3f80301431178787ff, gate 97 passed exit 0, red arm 4 failed exit 1 and baseline 93 passed, but carries no baseline_suite or after_suite block and no test_logs line."
+    },
+    {
+      "item": "diff",
+      "verdict": "the single commit 226f1c97 against base d1c9b901 changes 16 files (+395/-63), adding the paired columns, the median gate wait, the lane-block utilisation copy, nine goldens, four tests and the s7 capture."
+    }
+  ],
+  "justifications": {
+    "durability": "tests/test_llm_watch.py:586 fails if serving_band stops drawing the paired window columns, and logs/s7-red-arm.log records the four new tests failing over the base modules with EXIT=1.",
+    "evidence": "logs/s7-gate.log records 97 passed with EXIT=0 and logs/s7-baseline.log records 93 passed with EXIT=0, but the after arm's header names revision d1c9b901 and the run manifest carries no baseline_suite or after_suite block.",
+    "fit": "imas_ambix/agent/llm_watch.py:361 draws the group row through the existing _band helper, and utilisation_window at imas_ambix/agent/llm_watch.py:389 reads the shape lane_block publishes.",
+    "goal_fidelity": "imas_ambix/agent/llm_watch.py:461 draws mean, median s and deliv % beside in use, waiting and tok/s, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:19 shows the rendered row carrying 7/12, 11.1, 0, 2.5 and 558.",
+    "reuse": "imas_ambix/agent/lane_utilisation.py:455 adds a fourth median implementation beside imas_ambix/agent/bench_report.py:263 and imas_ambix/agent/provider_prices.py:413 without extending either owner.",
+    "scope_discipline": "every one of the 16 paths in d1c9b90..226f1c9 is inside imas_ambix/agent, tests, or docs/evidence/fragments/the-local-lane-delivers-its-plateau."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node draws the lane's window figures beside its instant figures; imas_ambix/agent/llm_watch.py:461 pairs in use with mean, waiting with median s and tok/s with deliv %, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:19 shows the rendered row.\nVERDICT done_when: the done_when defines a render test carrying 7 in service against width 12, a window mean of 11.1, a median gate wait of 2.5 s and nothing waiting, plus a no-window negative control; tests/test_llm_watch.py:586 and tests/test_llm_watch.py:607 assert those values and labels, and logs/s7-gate.log records 97 passed with EXIT=0.\nVERDICT write_paths: the node declared imas_ambix/agent, tests, the s7 evidence fragment directory and a figures directory; every one of the 16 changed paths in d1c9b90..226f1c9 is inside them.\nVERDICT manifest: the run manifest records status complete, commit 226f1c97ddc01b4abde4be3f80301431178787ff, gate 97 passed exit 0, red arm 4 failed exit 1 and baseline 93 passed, but carries no baseline_suite or after_suite block and no test_logs line.\nVERDICT diff: the single commit 226f1c97 against base d1c9b901 changes 16 files (+395/-63), adding the paired columns, the median gate wait, the lane-block utilisation copy, nine goldens, four tests and the s7 capture.\nCALL_SITES: imas_ambix/agent/llm_watch.py:1368 lane_section -> bands, imas_ambix/agent/llm_watch.py:645 bands -> serving_band, imas_ambix/agent/gpu_watch/panels.py:287 gpu_watch lane_section -> llm_watch.lane_section, imas_ambix/agent/live_panel.py:970 lane_block in the panel view document, imas_ambix/agent/router.py:473 utilisation_block publishes the window the row draws\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/llm_watch.py:461 draws mean, median s and deliv % beside in use, waiting and tok/s, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:19 shows the rendered row carrying 7/12, 11.1, 0, 2.5 and 558.\nSCORE evidence: 14\nJUSTIFICATION evidence: logs/s7-gate.log records 97 passed with EXIT=0 and logs/s7-baseline.log records 93 passed with EXIT=0, but the after arm's header names revision d1c9b901 and the run manifest carries no baseline_suite or after_suite block.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every one of the 16 paths in d1c9b90..226f1c9 is inside imas_ambix/agent, tests, or docs/evidence/fragments/the-local-lane-delivers-its-plateau.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_llm_watch.py:586 fails if serving_band stops drawing the paired window columns, and logs/s7-red-arm.log records the four new tests failing over the base modules with EXIT=1.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/agent/llm_watch.py:361 draws the group row through the existing _band helper, and utilisation_window at imas_ambix/agent/llm_watch.py:389 reads the shape lane_block publishes.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/lane_utilisation.py:455 adds a fourth median implementation beside imas_ambix/agent/bench_report.py:263 and imas_ambix/agent/provider_prices.py:413 without extending either owner.\nFINDING imas_ambix/agent/lane_utilisation.py:455 non-blocking: _median re-implements the median owned at imas_ambix/agent/bench_report.py:263 and imas_ambix/agent/provider_prices.py:413, and taken from statistics.median at imas_ambix/agent/decode_bins.py:343, adding a fourth copy of the estimator and its even-count rule.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 non-blocking: the capture is attributed to revision d1c9b901, which does not carry the change and whose lane_block cannot copy a utilisation block, so the fragment names a revision that cannot draw the row it shows; the rendering belongs to 226f1c97ddc01b4abde4be3f80301431178787ff.\nFINDING logs/s7-gate.log:1 non-blocking: the after arm's header names revision d1c9b901 while the tree it ran over carried the change that became 226f1c97, because gate.sh took git rev-parse HEAD before the commit, so the 97-passed receipt cannot be tied to the committed diff by its own header.\nFINDING logs/s7-baseline.log:2 non-blocking: the base and red arms were extracted to bare /tmp/base-pure and /tmp/base-s7 rather than under $TMPDIR, so neither scratch tree survives the allocation and the base measurement cannot be re-inspected.",
+  "reuse_search": "Searched imas_ambix/agent for a median owner by capability: bench_report.py:263 (_median over statistics.median), provider_prices.py:413 (_median), decode_bins.py:343 and receipt_bins.py:279 (statistics.median). Searched for a window accessor: live_panel.py:643 lane_block copies the block but no module reads admission.utilisation.window, so llm_watch.py:389 is the first reader and extends the lane document rather than forking it.",
+  "review_run_id": "r-20261118T180106984363-review-of-llp-the-live-panel-shows-the-window-beside-the-instant-226f1c97ddc01b4abde4be3f80301431178787ff",
+  "reviewed_base_sha": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7",
+  "reviewed_head_sha": "226f1c97ddc01b4abde4be3f80301431178787ff",
+  "reviewed_run_id": "r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant",
+  "reviewed_worker_commits": [
+    "226f1c97ddc01b4abde4be3f80301431178787ff"
+  ],
+  "scores": {
+    "durability": 18,
+    "evidence": 14,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 5,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_evidence": {
+    "after": {
+      "command": "PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/8e41a6d3-d0e0-4927-afd1-771942ebfe6a/llp-the-live-panel-shows-the-window-beside-the-instant /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_llm_watch.py tests/test_live_panel.py tests/test_agent_lane_utilisation.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/logs/s7-gate.log",
+      "revision": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7"
+    },
+    "baseline": {
+      "command": "PYTHONPATH=/tmp/base-pure /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_llm_watch.py tests/test_live_panel.py tests/test_agent_lane_utilisation.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/logs/s7-baseline.log",
+      "revision": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7"
+    },
+    "red": {
+      "command": "PYTHONPATH=/tmp/base-s7 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q -k 'window_utilisation or median_gate_wait or window_beside_the_instant or without_a_window' tests/test_llm_watch.py tests/test_live_panel.py tests/test_agent_lane_utilisation.py",
+      "completed": true,
+      "exit_status": 1,
+      "failure_count": 4,
+      "failure_ids": [
+        "tests/test_llm_watch.py::test_the_lane_row_shows_the_window_beside_the_instant",
+        "tests/test_llm_watch.py::test_a_lane_without_a_window_draws_dashes_and_says_so",
+        "tests/test_live_panel.py::test_lane_block_copies_the_window_utilisation_whole",
+        "tests/test_agent_lane_utilisation.py::test_the_window_reports_the_median_gate_wait_it_admitted"
+      ],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/logs/s7-red-arm.log",
+      "revision": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7"
+    }
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T18:46:38.819780+00:00",
+  "total": 95
+}

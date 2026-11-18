@@ -1,0 +1,121 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/lane_utilisation.py:42 imports median_or_none, used at window_figures",
+    "imas_ambix/agent/provider_prices.py:52 imports median, used at provider_median_in_force",
+    "imas_ambix/agent/bench_report.py:30 imports median_or_none, used at _index_tests and describe_run",
+    "imas_ambix/agent/router.py:473 calls utilisation_block",
+    "imas_ambix/agent/watch.py:942 and :981 call provider_median_in_force"
+  ],
+  "completed_at": "2026-11-18T20:42:32.181Z",
+  "dispatched_at": "2026-11-18T20:42:05Z",
+  "evidence_limits": "The reviewed manifest carries no baseline_suite or after_suite block; added_failure_count and added_failure_ids are derived from the arms it does record, logs/s7-baseline.log (93 passed, EXIT=0, EXIT=0 and no failing ids) and logs/s7-gate.log (98 passed, EXIT=0, no failing ids), so 0 added failures. The head arm ran at 5e5ad0ac, one commit before c0b71c0, which touches only docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html. I re-checked in the preserved scratch trees at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/scratch/ rather than re-running the full suite: tests/agent/test_median.py 5 passed at head, ruff check imas_ambix tests passed, and ruff format --check over the gained paths reported provider_prices.py.",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/provider_prices.py",
+      "line": "415",
+      "severity": "blocking",
+      "text": "blocking: e3499ec4 deleted the local _median and left four blank lines (413-416) where ruff format requires two; ruff format --check over the gained paths reports imas_ambix/agent/provider_prices.py (EXIT=1) in the preserved head tree while the same file is clean at d1c9b901, so the change introduces a format report on a changed path and fails the done_when's 'nothing new on the change d paths' clause."
+    },
+    {
+      "file": "imas_ambix/agent/median.py",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the module claims 'The medians the agent package computes, stated once' and that no reader 'can quietly come to prefer different arithmetic', but imas_ambix/agent/decode_bins.py:343,346,361,364 and imas_ambix/agent/receipt_bins.py:279,280,282 still call statistics.median directly, so two in-package readers bypass the owner the change introduces."
+    },
+    {
+      "file": "tests/agent/test_median.py",
+      "line": "52",
+      "severity": "non-blocking",
+      "text": "non-blocking: 'median_or_none(series) == approximately(median(series))' compares two calls into the module under test on both sides, so it holds if both contracts regress together and names no independent source; the estimator's own rule is pinned independently at tests/agent/test_median.py:57, so durability does not rest on it."
+    },
+    {
+      "file": "logs/s7-lint.log",
+      "line": "2",
+      "severity": "non-blocking",
+      "text": "non-blocking: the recorded command is a bare 'ruff check', but that exact command in the preserved head tree scratch/head-5e5ad0ac89b630d10be36eb7c132d4cd9c7f6902 reports 634 errors with EXIT=1, so 'All checks passed!' cannot come from the recorded command; the project's own gate 'ruff check imas_ambix tests' does pass at head, so the code is clean but the receipt does not evidence it."
+    },
+    {
+      "file": "logs/s7-estimator-suites.log",
+      "line": "2",
+      "severity": "non-blocking",
+      "text": "non-blocking: the arm's command is the placeholder '<every suite that imports the estimator>' and cannot be re-run, and its 101-test count does not cover tests/agent/test_median.py, whose five tests are in no recorded arm (the gate's 98 over three files plus five would read 103); I ran tests/agent/test_median.py at c0b71c0 directly and saw 5 passed."
+    }
+  ],
+  "item_verdicts": [
+    {
+      "item": "goal",
+      "verdict": "the source node's goal is to show the window utilisation figures beside the instant ones on the gained commits the row is unchanged but the estimator behind the median window figure is now imas_ambix/agent/median.py:32, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 still shows 7/12, 11.1, 0, 2.5, 558 with each column labelled instant or window."
+    },
+    {
+      "item": "done_when",
+      "verdict": "the done_when names a render test with 7 in service, window mean 11.1, median gate wait 2.5 s and nothing waiting, plus a no-window negative control, an s7 capture and a ruff clause; tests/test_llm_watch.py:586 and :608 assert those values, logs/s7-gate.log records 98 passed with EXIT=0 at 5e5ad0ac and logs/s7-red-arm.log records the four new tests failing over the base modules (5 failed, 2 passed, EXIT=1), but the ruff clause is not met on the gained paths and the lint arm's command does not reproduce its receipt; see FINDING logs/s7-lint.log:2 and imas_ambix/agent/provider_prices.py:415."
+    },
+    {
+      "item": "write_paths",
+      "verdict": "the node declared imas_ambix/agent, tests, docs/evidence/fragments/the-local-lane-delivers-its-plateau and a figures directory; all 20 paths in d1c9b901..c0b71c0, including the three files named in this review's goal, sit inside them."
+    },
+    {
+      "item": "manifest",
+      "verdict": "the run manifest records status complete, the three commits e3499ec4/5e5ad0ac/c0b71c0, arms baseline 93 passed, head 98 passed EXIT=0, red 5 failed, estimator_suites 101 passed, ruff check 'All checks passed!' and ruff format --check four files; I re-verified the preserved scratch trees and found the two ruff receipts do not reproduce their recorded commands, and the base arm's 93 plus the five tests of tests/agent/test_median.py is 98, not the estimator arm's 101."
+    },
+    {
+      "item": "diff",
+      "verdict": "commit by commit: 050719f3 moved window_figures onto statistics.median and 786dfd15 corrected the s7 attribution; e3499ec4 added imas_ambix/agent/median.py and migrated bench_report, lane_utilisation and provider_prices; ab3dd7b5 recaptured s7 naming e3499ec4; 5e5ad0ac made median_or_none delegate to median and added two tests; c0b71c0 recaptured s7 naming 5e5ad0ac; the 7 files in 226f1c97..c0b71c0 and all 20 in d1c9b901..c0b71c0 are inside the declared write paths, with the provider_prices blank-line residue in e3499ec4 the only code defect found."
+    }
+  ],
+  "justifications": {
+    "durability": "tests/agent/test_median.py:29 fails if the even count picks a middle instead of averaging (1.5), tests/agent/test_median.py:57 pins 3.5 independently at imas_ambix/agent/median.py:34, and logs/s7-nc-median-run.log shows the lower-middle mutant reddening the lane window test with 1.0 against 1.5.",
+    "evidence": "logs/s7-gate.log records 98 passed with EXIT=0 at 5e5ad0ac and logs/s7-baseline.log 93 at d1c9b901, but logs/s7-lint.log:2 records a bare ruff check that reproduces as 634 errors/EXIT=1 in scratch/head-5e5ad0ac, and logs/s7-estimator-suites.log:2 carries a placeholder command.",
+    "fit": "imas_ambix/agent/median.py:1-45 follows the package's module-docstring, __future__ and TYPE_CHECKING idiom, but its first line overclaims that the package's medians are stated once while imas_ambix/agent/decode_bins.py:343 still calls the stdlib directly, and imas_ambix/agent/provider_prices.py:415 carries four blank lines.",
+    "goal_fidelity": "the gained commits keep the row's four named values while moving its median onto imas_ambix/agent/median.py:37, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 names the head that carries them.",
+    "reuse": "the added definitions extend the standard library estimator rather than forking a repository owner, and imas_ambix/agent/bench_report.py:30, imas_ambix/agent/lane_utilisation.py:42 and imas_ambix/agent/provider_prices.py:52 import the new owner; searching imas_ambix/agent for the capability found only imas_ambix/agent/live_panel.py:409 (_median_from_histogram, a different bucketed capability) left local, with decode_bins/receipt_bins still calling statistics.median directly rather than extending it.",
+    "scope_discipline": "every path in d1c9b901..c0b71c0 lies inside imas_ambix/agent, tests or docs/evidence/fragments/the-local-lane-delivers-its-plateau, with no change outside the node's declared scope."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the source node's goal is to show the window utilisation figures beside the instant ones; the gained commits leave imas_ambix/agent/median.py:37 computing the median window figure and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 still shows 7/12, 11.1, 0, 2.5 and 558 with instant/window labels.\nVERDICT done_when: the render test at tests/test_llm_watch.py:586 and its no-window control at :608 carry the done_when's figures, logs/s7-gate.log records 98 passed with EXIT=0 and logs/s7-red-arm.log the red arm (5 failed, EXIT=1), but the ruff clause is not met on the gained paths and the lint arm's recorded command does not reproduce its receipt.\nVERDICT write_paths: the node declared imas_ambix/agent, tests and docs/evidence/fragments/the-local-lane-delivers-its-plateau; all 20 paths in d1c9b901..c0b71c0 sit inside them.\nVERDICT manifest: read; it records status complete, commits e3499ec4/5e5ad0ac/c0b71c0, baseline 93, head 98, red 5 failed, estimator_suites 101 and a clean ruff check, and two of those receipts do not reproduce their recorded commands.\nVERDICT diff: read commit by commit from 050719f3 to c0b71c0; 7 files in 226f1c97..c0b71c0 and 20 in d1c9b901..c0b71c0, all inside the declared write paths, with the provider_prices blank-line residue the one code defect.\nCALL_SITES: imas_ambix/agent/lane_utilisation.py:42, imas_ambix/agent/provider_prices.py:52, imas_ambix/agent/bench_report.py:30, imas_ambix/agent/router.py:473, imas_ambix/agent/watch.py:942\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: the gained commits keep the row's four named values while moving its median onto imas_ambix/agent/median.py:37, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html:16 names the head that carries them.\nSCORE evidence: 12\nJUSTIFICATION evidence: logs/s7-gate.log records 98 passed with EXIT=0 at 5e5ad0ac and logs/s7-baseline.log 93 at d1c9b901, but logs/s7-lint.log:2 records a bare ruff check that reproduces as 634 errors/EXIT=1 in scratch/head-5e5ad0ac, and logs/s7-estimator-suites.log:2 carries a placeholder command.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in d1c9b901..c0b71c0 lies inside imas_ambix/agent, tests or docs/evidence/fragments/the-local-lane-delivers-its-plateau, with no change outside the node's declared scope.\nSCORE durability: 16\nJUSTIFICATION durability: tests/agent/test_median.py:29 fails if the even count picks a middle instead of averaging (1.5), tests/agent/test_median.py:57 pins 3.5 independently at imas_ambix/agent/median.py:34, and logs/s7-nc-median-run.log shows the lower-middle mutant reddening the lane window test with 1.0 against 1.5.\nSCORE fit: 13\nJUSTIFICATION fit: imas_ambix/agent/median.py:1-45 follows the package idiom but its first line overclaims that the package's medians are stated once while imas_ambix/agent/decode_bins.py:343 still calls the stdlib directly, and imas_ambix/agent/provider_prices.py:415 carries four blank lines.\nSCORE reuse: 16\nJUSTIFICATION reuse: the added definitions extend the standard-library estimator and imas_ambix/agent/bench_report.py:30, imas_ambix/agent/lane_*utilisation.py:42 and imas_ambix/agent/provider_prices.py:52 import the new owner, with other implemented medians inside imas_ambix/bench and imas_ambix/spine_bench left unreachable by this change.\nFINDING imas_ambix/agent/provider_prices.py:415 blocking: e3499ec4 deleted the local _median and left four blank lines; ruff format --check over the gained paths reports imas_ambix/agent/provider_prices.py (EXIT=1) where the same file is clean at d1c9b901, so the change introduces a format report on a changed path.\nFINDING imas_ambix/agent/median.py:1 non-blocking: the module claims the agent package's medians are stated once, but imas_ambix/agent/decode_bins.py:343,346,361,364 and imas_ambix/agent/receipt_bins.py:279-282 still call statistics.median directly.\nFINDING tests/agent/test_median.py:52 non-blocking: the agreement assertion compares two calls into the module under test against each other, so it holds if both contracts regress together; the rule is pinned independently at tests/agent/test_median.py:57.\nFINDING logs/s7-lint.log:2 non-blocking: the recorded bare ruff check reproduces as 634 errors/EXIT=1 in the preserved head tree, so the recorded 'All checks passed!' does not come from the recorded command.\nFINDING logs/s7-estimator-suites.log:2 non-blocking: the arm's command is a placeholder and its 101 tests do not cover the five in tests/agent/test_median.py, which appear in no recorded arm.",
+  "reuse_search": "Searched the tree at c0b71c0 for a median owner by capability, not name: git grep 'def .*median' and 'statistics.median' over imas_ambix found imas_ambix/agent/median.py as the new owner, remaining direct calls at imas_ambix/agent/decode_bins.py:343,346,361,364 and imas_ambix/agent/receipt_bins.py:279-282, a bucketed helper at imas_ambix/agent/live_panel.py:409, and out-of-package estimators at imas_ambix/bench/stream_worker.py:391, imas_ambix/bench/cosmos_worker.py:227 and imas_ambix/spine_bench/runner.py:227, none of which the change makes reachable.",
+  "review_run_id": "r-20261118T194614074367-review-of-llp-the-live-panel-shows-the-window-beside-the-instant-c0b71c0ac687",
+  "reviewed_base_sha": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7",
+  "reviewed_head_sha": "c0b71c0ac687508806e42537d0fe21282a36584d",
+  "reviewed_run_id": "r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant",
+  "reviewed_worker_commits": [
+    "e3499ec45482fa7a26a297b2da7db583a00c11ad",
+    "5e5ad0ac89b630d10be36eb7c132d4cd9c7f6902",
+    "c0b71c0ac687508806e42537d0fe21282a36584d"
+  ],
+  "scores": {
+    "durability": 16,
+    "evidence": 12,
+    "fit": 13,
+    "goal_fidelity": 18,
+    "reuse": 16,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_evidence": {
+    "after": {
+      "command": "PYTHONPATH=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/scratch/head-5e5ad0ac89b630d10be36eb7c132d4cd9c7f6902 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_llm_watch.py tests/test_live_panel.py tests/test_agent_lane_utilisation.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/logs/s7-gate.log",
+      "revision": "5e5ad0ac89b630d10be36eb7c132d4cd9c7f6902"
+    },
+    "baseline": {
+      "command": "PYTHONPATH=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/scratch/base-d1c9b901efb96d3a7b827b2a2c5261347f9e30c7 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_llm_watch.py tests/test_live_panel.py tests/test_agent_lane_utilisation.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103502261233-llp-the-live-panel-shows-the-window-beside-the-instant/logs/s7-baseline.log",
+      "revision": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7"
+    }
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T21:18:46.569954+00:00",
+  "total": 95
+}
