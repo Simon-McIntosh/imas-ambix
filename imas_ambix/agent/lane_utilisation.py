@@ -158,6 +158,7 @@ def offered_load(
     intervals: Sequence[RequestInterval],
     *,
     working_horizon: float = DEFAULT_WORKING_HORIZON_SECONDS,
+    include_gate_wait: bool = False,
 ) -> float | None:
     """The load one live run offers the gate when it does not wait.
 
@@ -166,6 +167,12 @@ def offered_load(
     does to a run, not what the run brings, so a rule sized on this load does
     not read a fuller lane as room for more workers -- the failure a duty
     measured over the whole live span has.
+
+    ``include_gate_wait`` states that failing rule instead: the duty is then
+    the service time over the whole live span, so a run that waits looks like a
+    lighter run and the rule admits more the longer the queue gets. Nothing in
+    the lane sets it; the simulation's negative control is its only caller, and
+    it exists so that control exercises this code rather than a copy of it.
 
     ``None`` when the keyed runs offer no live span at all: a lane whose runs
     are all unkeyed cannot state the load, and a zero would divide.
@@ -179,7 +186,7 @@ def offered_load(
         waited += interval.gate_wait_seconds
     spans = _live_spans(intervals, working_horizon=working_horizon)
     live = sum(end - start for start, end in spans.values())
-    available = live - waited
+    available = live if include_gate_wait else live - waited
     if available <= 0 or service <= 0:
         return None
     return service / available
@@ -191,6 +198,7 @@ def capacity_from_offered_load(
     width: int,
     margin: float = DEFAULT_MARGIN,
     working_horizon: float = DEFAULT_WORKING_HORIZON_SECONDS,
+    include_gate_wait: bool = False,
 ) -> int | None:
     """How many runs the gate's width can hold at the load they offer.
 
@@ -198,7 +206,11 @@ def capacity_from_offered_load(
     to a whole run: a run is admitted whole. ``None`` when the load cannot be
     stated, because a capacity guessed there would size a dispatch.
     """
-    load = offered_load(intervals, working_horizon=working_horizon)
+    load = offered_load(
+        intervals,
+        working_horizon=working_horizon,
+        include_gate_wait=include_gate_wait,
+    )
     if load is None or width <= 0 or margin <= 0:
         return None
     return max(0, math.floor(margin * width / load))

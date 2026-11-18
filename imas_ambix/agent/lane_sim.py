@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN
 from imas_ambix.agent.router import ADMISSION_WINDOW_SECONDS, _AdmissionLedger
 
 if TYPE_CHECKING:
@@ -53,6 +54,8 @@ LAUNCH_RAMP_S = (45.0, 120.0)
 #: Simulated time discarded before figures are taken, so the pool's start-up
 #: transient is not reported as the lane's steady state.
 WARM_UP_S = 1800.0
+#: The bucket the rule's worker count is read in, after the run's first hour.
+WORKER_BUCKET_S = 600.0
 #: The gate width the lane ran at over the measured window.
 LANE_WIDTH = 12
 
@@ -285,6 +288,8 @@ class LaneSim:
         hours: float = 4.5,
         workers: int | None = None,
         queue: int = 10**9,
+        margin: float = DEFAULT_MARGIN,
+        duty_includes_wait: bool = False,
     ) -> None:
         if width < 1:
             raise ValueError("a gate is at least one request wide")
@@ -296,6 +301,11 @@ class LaneSim:
         self.width = width
         self.fixed_workers = workers
         self.queue = queue
+        self.margin = margin
+        # The counterfactual the rule's negative control runs: duty measured
+        # over the live span including the gate wait, so a queued lane reads as
+        # a light one and the rule admits without bound.
+        self.duty_includes_wait = duty_includes_wait
         self.t = 0.0
         self.end = hours * 3600.0
         self.workers: dict[int, dict[str, float | str]] = {}
@@ -309,6 +319,11 @@ class LaneSim:
         self.waits: list[float] = []
         self.level_time: collections.Counter[int] = collections.Counter()
         self.live_time = 0.0
+        # The rule's worker count in ten-minute buckets after the warm-up, so a
+        # run's settling can be read as a trend rather than only as one mean: a
+        # rule still ramping at hour three is not a rule that holds its count.
+        self.worker_bucket_time: collections.Counter[int] = collections.Counter()
+        self.worker_bucket_area: collections.Counter[int] = collections.Counter()
 
         def rate_at(k: int) -> float:
             """The measured per-stream rate at ``k`` in service.
@@ -364,10 +379,32 @@ class LaneSim:
             self.slots = max(0, self.fixed_workers - held)
             return self.slots
         snapshot = self.ledger.snapshot(
-            now=self.t, effective_width=self.width, verdict="open"
+            now=self.t,
+            effective_width=self.width,
+            verdict="open",
+            margin=self.margin,
+            duty_includes_wait=self.duty_includes_wait,
         )
         self.slots = int(snapshot["worker_slots"])
         return self.slots
+
+    def worker_ten_minute_means(self, *, first_hour: float = 3600.0) -> list[float]:
+        """The pool's mean size in each ten-minute bucket after the first hour.
+
+        Read from the same run the rule produced, so a count that is still
+        settling shows as buckets that differ from the last hour's rather than
+        as a mean that hides it. ``first_hour`` is measured from the end of the
+        warm-up, so the count is read only after the pool has had an hour to
+        find its level.
+        """
+        means: list[float] = []
+        for bucket in sorted(self.worker_bucket_time):
+            if (bucket + 1) * WORKER_BUCKET_S <= first_hour:
+                continue
+            span = self.worker_bucket_time[bucket]
+            if span > 0:
+                means.append(self.worker_bucket_area[bucket] / span)
+        return means
 
     # -- one run ---------------------------------------------------------
     def run(self, start_workers: int | None = None) -> RunResult:
@@ -402,7 +439,9 @@ class LaneSim:
                 state = self.workers[worker]
                 state["state"] = "serve"
                 self.in_service.add(worker)
-                self.open_intervals[worker] = self.ledger.admit(str(worker), now=self.t)
+                self.open_intervals[worker] = self.ledger.admit(
+                    str(worker), now=self.t, arrived=float(state["arrived"])
+                )
                 if self.t > WARM_UP_S:
                     self.waits.append(self.t - float(state["arrived"]))
             rate = self.rate_at(len(self.in_service)) if self.in_service else 0.0
@@ -424,6 +463,9 @@ class LaneSim:
             if self.t > WARM_UP_S:
                 self.level_time[len(self.in_service)] += DT
                 self.live_time += len(self.workers) * DT
+                bucket = int((self.t - WARM_UP_S) // WORKER_BUCKET_S)
+                self.worker_bucket_time[bucket] += DT
+                self.worker_bucket_area[bucket] += len(self.workers) * DT
             self.t += DT
         span = max(self.end - WARM_UP_S, DT)
         return RunResult(

@@ -1236,6 +1236,14 @@ def _merge_admission(documents: list[dict]) -> dict[str, object]:
     merged["worker_slots"] = (
         sum(slots) if all(slot is not None for slot in slots) else None
     )
+    # Capacity is a count of runs and adds across engines; the margin is the one
+    # dial every engine was set to, so a pool publishes it only when they agree.
+    capacities = [_numeric(admission.get("capacity")) for admission in admissions]
+    merged["capacity"] = (
+        sum(capacities) if all(value is not None for value in capacities) else None
+    )
+    margins = {admission.get("margin") for admission in admissions}
+    merged["margin"] = margins.pop() if len(margins) == 1 else None
     merged["worker_slots_basis"] = (
         "measured"
         if all(
@@ -1376,8 +1384,10 @@ def compose_pool_document(documents: list[dict], *, model_id: str) -> dict[str, 
         settling = False
     else:
         settling = None
-    usable = mean_context is not None and not volatile and all(
-        d.get("sizing_verdict") == "usable" for d in documents
+    usable = (
+        mean_context is not None
+        and not volatile
+        and all(d.get("sizing_verdict") == "usable" for d in documents)
     )
     if usable:
         sizing_reason = "the working context is steady across every engine's window"
@@ -1388,8 +1398,7 @@ def compose_pool_document(documents: list[dict], *, model_id: str) -> dict[str, 
             if d.get("sizing_verdict") != "usable" and d.get("sizing_reason")
         ]
         sizing_reason = (
-            "not every engine could size from its own window: "
-            + "; ".join(blocked)
+            "not every engine could size from its own window: " + "; ".join(blocked)
             if blocked
             else "the pool's working context could not be composed"
         )
