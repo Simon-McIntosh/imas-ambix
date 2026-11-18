@@ -69,9 +69,9 @@ def _live_ledger(
 
     Each run asked 400 s ago, was served for 150 s, asked again 100 s later and
     was served for another 150 s, so its observed span is 400 s and it offered
-    300 s of service: the load 0.75 that width 12 and margin 1.25 turn into a
-    capacity of exactly 20. ``wait`` is the time each request spent at the gate
-    before admission.
+    300 s of service: the load 0.75 that width 12 and the default margin turn
+    into a capacity of exactly 24. ``wait`` is the time each request spent at the
+    gate before admission.
     """
     ledger = _AdmissionLedger()
     for index in range(runs):
@@ -108,8 +108,8 @@ def test_ledger_sizes_capacity_from_the_load_live_runs_offer() -> None:
     working horizon ago, so they hold no slot and contribute no load. Hand
     arithmetic on the same ledger: service is 15 * 150 s, the observed span runs
     from the first arrival to the last end, 405 s per run, the gate wait is
-    15 * 10 s, so the load is 150 / 395 and the capacity at width 12 and margin
-    1.25 is floor(15 * 395 / 150) = 39.
+    15 * 10 s, so the load is 150 / 395 and the capacity at width 12 and the
+    default margin is floor(1.5 * 15 * 395 / 150) = 47.
     """
     now = _NOW
     ledger = _AdmissionLedger()
@@ -126,11 +126,12 @@ def test_ledger_sizes_capacity_from_the_load_live_runs_offer() -> None:
     # First arrival 405 s ago, last request ended at the snapshot.
     live_span = 15 * 405.0
     waited = 15 * 10.0
-    by_hand = math.floor(1.25 * 12 / (service / (live_span - waited)))
+    by_hand = math.floor(DEFAULT_MARGIN * 12 / (service / (live_span - waited)))
 
     assert snapshot["live_runs"] == 15
     assert snapshot["capacity"] == by_hand
-    assert abs(snapshot["capacity"] - 1.25 * 12 / (service / (live_span - waited))) <= 1
+    by_hand_exact = DEFAULT_MARGIN * 12 / (service / (live_span - waited))
+    assert abs(snapshot["capacity"] - by_hand_exact) <= 1
     assert snapshot["worker_slots"] == snapshot["capacity"] - 15
 
 
@@ -182,8 +183,8 @@ def test_published_slots_are_capacity_less_the_live_runs() -> None:
     ledger = _live_ledger(now, 10)
     snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
     assert snapshot["worker_slots_basis"] == "measured"
-    assert snapshot["capacity"] == 20
-    assert snapshot["worker_slots"] == 10
+    assert snapshot["capacity"] == 24
+    assert snapshot["worker_slots"] == 14
     assert snapshot["worker_slots"] == snapshot["capacity"] - snapshot["live_runs"]
 
 
@@ -212,8 +213,8 @@ def test_gate_wait_is_left_out_of_the_offered_load() -> None:
 
     Twelve steady runs each spent 60 s at the gate before each of their two
     admissions. Counting that 120 s out of the run's live span raises the load
-    and drops the capacity from 23 to 17: waiting costs the lane workers.
-    Counting the wait in would hold the capacity at 23 and admit more into a
+    and drops the capacity from 27 to 20: waiting costs the lane workers.
+    Counting the wait in would hold the capacity at 27 and admit more into a
     gate that is already making requests wait, which is the runaway the rule
     exists to avoid.
     """
@@ -223,8 +224,8 @@ def test_gate_wait_is_left_out_of_the_offered_load() -> None:
     including_wait = ledger.snapshot(
         now=now, effective_width=12, verdict="open", duty_includes_wait=True
     )
-    assert snapshot["capacity"] == 17
-    assert including_wait["capacity"] == 23
+    assert snapshot["capacity"] == 20
+    assert including_wait["capacity"] == 27
     assert snapshot["capacity"] < including_wait["capacity"]
 
 
@@ -233,10 +234,11 @@ def test_measuring_duty_including_gate_wait_runs_away() -> None:
 
     Fifteen runs wait 170 s at the gate for a 10 s request, so their whole live
     span is mostly queue time. Read as a duty over that span the lane looks
-    almost idle and the rule admits 270 workers at margin 1.25; read with the
-    wait removed, the same runs offer a load of one and the capacity collapses
-    to the width. The two readings are the same ledger and the same margin, so a
-    test that could only ever see one of them is not testing the distinction.
+    almost idle and the rule admits a worker count past 200 at the default
+    margin; read with the wait removed, the same runs offer a load of one and
+    the capacity collapses to the width. The two readings are the same ledger
+    and the same margin, so a test that could only ever see one of them is not
+    testing the distinction.
     """
     now = _NOW
     ledger = _AdmissionLedger(min_history_seconds=0.0)
@@ -282,8 +284,8 @@ def test_fresh_ledger_assumes_capacity_then_measures_once_history_elapses() -> N
     assert ready["worker_slots_basis"] == "measured"
     assert ready["live_runs"] == 4
     # Four runs continuously in service offer a load of one, so the capacity is
-    # the margin times the width: floor(1.25 * 16).
-    assert ready["capacity"] == 20
+    # the margin times the width: floor(1.5 * 16).
+    assert ready["capacity"] == 24
 
 
 def test_ratio_averages_over_the_observed_span_not_the_full_window() -> None:
@@ -346,7 +348,7 @@ def test_a_queueing_gate_still_offers_its_capacity_and_a_paused_one_none() -> No
     now = _NOW
     ledger = _live_ledger(now, 10)
     open_snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
-    assert open_snapshot["worker_slots"] == 10
+    assert open_snapshot["worker_slots"] == 14
     for verdict in ("congested", "full"):
         snapshot = ledger.snapshot(now=now, effective_width=12, verdict=verdict)
         assert snapshot["worker_slots"] == open_snapshot["worker_slots"]
@@ -469,9 +471,9 @@ def test_a_malformed_margin_does_not_leave_a_silently_different_gate(tmp_path) -
 # Slots are partitioned only when more than one session is working, so a session
 # working alone takes the whole global figure. Each session's runs are the steady
 # two-request runs of ``_live_ledger``: a 400 s span carrying 300 s of service,
-# so the offered load is 0.75 and the capacity at width 12 and margin 1.25 is
-# exactly 20.
-_CAPACITY = 20
+# so the offered load is 0.75 and the capacity at width 12 and the default
+# margin is exactly 24.
+_CAPACITY = 24
 
 
 def _session_ledger(
@@ -509,31 +511,32 @@ def test_one_working_session_is_offered_the_whole_global_figure() -> None:
     ledger = _session_ledger(_NOW, workers={"A": 10})
     snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
     assert snapshot["capacity"] == _CAPACITY
-    assert snapshot["worker_slots"] == 10
+    assert snapshot["worker_slots"] == 14
     assert snapshot["active_sessions"] == 1
     assert snapshot["fair_share"] == _CAPACITY
     assert snapshot["borrow_reserve"] == 2
-    assert snapshot["sessions"] == {"A": {"live_runs": 10, "worker_slots": 10}}
+    assert snapshot["sessions"] == {"A": {"live_runs": 10, "worker_slots": 14}}
 
 
 def test_two_working_sessions_divide_the_capacity_and_borrow_around_it() -> None:
-    """With two sessions the fair share is floor(20 / 2) = 10.
+    """With two sessions the fair share is floor(24 / 2) = 12.
 
-        Session A holds 3 workers and B holds 5, so the global figure is
-        20 - 8 = 12. Both are below their share and each may grow to it, which is
-        10. A new session is computed as a third with no workers of its own, so its
-    share is floor(20 / 3) = 6, and the global figure less the room reserved for
-        the two sessions already short of their share offers it 9.
+    Session A holds 3 workers and B holds 5, so the global figure is
+    24 - 8 = 16. The global figure less the two slots held back for the other
+    session's growth offers each of them 14. A new session is computed as a
+    third with no workers of its own, so its share is floor(24 / 3) = 8, and the
+    global figure less the four slots reserved for the two sessions short of
+    their share offers it 12.
     """
     ledger = _session_ledger(_NOW, workers={"A": 3, "B": 5})
     snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
-    assert snapshot["worker_slots"] == 12
+    assert snapshot["worker_slots"] == 16
     assert snapshot["active_sessions"] == 2
-    assert snapshot["fair_share"] == 10
+    assert snapshot["fair_share"] == 12
     assert snapshot["borrow_reserve"] == 2
-    assert snapshot["sessions"]["A"] == {"live_runs": 3, "worker_slots": 10}
-    assert snapshot["sessions"]["B"] == {"live_runs": 5, "worker_slots": 10}
-    assert snapshot["new_session_worker_slots"] == 9
+    assert snapshot["sessions"]["A"] == {"live_runs": 3, "worker_slots": 14}
+    assert snapshot["sessions"]["B"] == {"live_runs": 5, "worker_slots": 14}
+    assert snapshot["new_session_worker_slots"] == 12
 
 
 def test_session_idle_past_the_horizon_stops_claiming_a_share() -> None:
@@ -563,15 +566,15 @@ def test_session_less_runs_form_one_unattributed_session() -> None:
     Three runs with no session header still share the lane with any session
     that has one, so they are grouped together as ``unattributed`` rather than
     left out of the share. They are working alone here, so they take the whole
-    global figure of 20 - 3 = 17.
+    global figure of 24 - 3 = 21.
     """
     ledger = _session_ledger(_NOW, workers={None: 3})
     snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
     assert snapshot["active_sessions"] == 1
     assert snapshot["sessions"] == {
-        "unattributed": {"live_runs": 3, "worker_slots": 17}
+        "unattributed": {"live_runs": 3, "worker_slots": 21}
     }
-    assert snapshot["worker_slots"] == 17
+    assert snapshot["worker_slots"] == 21
 
 
 def test_paused_verdict_zeroes_every_per_session_figure() -> None:

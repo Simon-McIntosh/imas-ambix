@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 # slot after its last admission. Both are published beside the figures; the
 # defaults match the gate's own so a caller that passes neither still computes
 # the block the gate publishes.
-DEFAULT_MARGIN = 1.25
+DEFAULT_MARGIN = 1.5
 DEFAULT_WORKING_HORIZON_SECONDS = 180.0
 DEFAULT_HOUR_SECONDS = 3600.0
 # A level's rate is the mean of its requests, so a bin holding a handful of them

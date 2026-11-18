@@ -28,6 +28,7 @@ from imas_ambix.agent.lane_sim import (
     read_receipts,
     simulate_fixed,
 )
+from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN
 
 RECEIPTS = Path(__file__).parent / "data" / "lane_receipts"
 
@@ -224,14 +225,16 @@ def test_the_pool_holds_its_level_through_the_run(name: str, margin: float) -> N
 
 
 @pytest.mark.parametrize("name", WORKLOADS)
-def test_the_rule_delivers_the_plateau_at_margin_1_25(name: str) -> None:
+def test_the_rule_delivers_the_plateau_at_the_default_margin(name: str) -> None:
     """At the default margin the rule fills the lane without making it queue.
 
     Delivery is quoted against the best a fixed pool of the same model reaches,
     so a rule that settles low fails even if its wait is short, and one that
-    fills the gate by queueing fails the wait bound.
+    fills the gate by queueing fails the wait bound. The margin is the gate's
+    own default, so the figure measured here is the one a deployment gets
+    without setting a margin at all.
     """
-    _, result = _rule_run(name, 1.25)
+    _, result = _rule_run(name, DEFAULT_MARGIN)
     assert result.tok_s >= PLATEAU_SHARE * _simulated_plateau(name), (
         name,
         result.tok_s,
