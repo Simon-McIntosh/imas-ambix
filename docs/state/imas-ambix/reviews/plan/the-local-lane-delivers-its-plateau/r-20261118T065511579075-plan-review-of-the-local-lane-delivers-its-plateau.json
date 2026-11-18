@@ -1,0 +1,78 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-18T06:56:29.373Z",
+  "dispatched_at": "2026-11-18T06:56:15Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/router.py:323",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a73 forbids the copy in its own text (\"called and not copied\"), so a node brief must name router.py:323 as the rule to import and retire sim.py:73-121 and sim-offered.py:74-129 to it, and \u00a72's margin figure is only reproducible if the calibrated simulation runs that same code.",
+      "text": "the simulation's interval ledger is a hand copy of `_AdmissionLedger` at docs/evidence/fragments/the-local-lane-delivers-its-plateau/sim.py:73-99 (window/observed/busy/ratio) and sim-offered.py:74-100, its window constants are copied from router.py:272 ADMISSION_WINDOW_SECONDS and its horizon from router.py:286 WORKING_HORIZON_SECONDS into sim.py:25-26 and sim-offered.py:25-26, its slot rule copies router.py:377-511 into sim.py:102-121 and sim-offered.py:107-129, and the offered-load rule exists only as script code at sim-offered.py:119-125; a third reader of the same rows, docs/evidence/fragments/the-local-lane-delivers-its-plateau/occupancy.py:10-38, recomputes mean in service, time below width and gate-wait quantiles that lane_callers.py:675 `_history_from_rows` and :384 `_record_tail` already derive from the router's own record, while the lane document's own merge path imas_ambix/agent/lane.py:1215 copies each of these fields from whichever process publishes them, so the owned place for the new rule and the new fields is router.py:323 with the trailing-window read in lane_callers.py:384 rather than a fifth copy at sim.py and a sixth in occupancy.py",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/lane_callers.py:384",
+      "id": "duplicate_owner-2",
+      "reason": "the endpoint and its bound are unchanged whichever owner computes it; this only fixes which file the node brief names, and the plan is not asked to name files.",
+      "text": "gate wait is already observed in three owned places: the router's live queue at imas_ambix/agent/router.py:806 (`oldest_wait_seconds`), the per-request `gate_wait_s` stamped at admission at router.py:1554-1622 and read back by lane_callers.py:224 `_mean_gate_wait`, and the evidence replay at docs/evidence/fragments/the-local-lane-delivers-its-plateau/occupancy.py:36-38; \u00a75's \"90th-percentile gate wait over the last five minutes\" must extend one of these (lane_callers already bins the record by minute at lane_callers.py:675) instead of adding a fourth wait reader",
+      "type": "duplicate_owner",
+      "would_change": false
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:89",
+      "id": "deep_module-1",
+      "reason": "the \u00a76 split and the \u00a74 liveness rule are the same record seen twice, and the plan's figures are only checkable against each other if one published block carries them.",
+      "text": "\u00a74's live-run definition, \u00a75's wait bound, \u00a76's four utilisation figures and split of below-width time, and \u00a73's calibration \u00a74 is checked in all need the same interval record (run, start, end, gate wait, published slots) but the reviewed design gives each section its own reading: router.py:377 for the slot figures, lane_callers.py:675 for window occupancy, occupancy.py for the evidence values, sim.py:73 for the simulation, and the panel at imas_ambix/agent/live_panel.py:643 would copy a fifth shape; the offered/unoffered split especially needs the ledger to keep the slot offers it has already made, which no current reader retains, so without one module owning the record the split must either re-derive offers from lane-document samples or be computed in the panel",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:84",
+      "id": "thin_wrapper-1",
+      "reason": "\u00a74 and \u00a75 both govern the same published slot count, and a separate refusal path makes \u00a74's done-when and \u00a75's closed-slot reason independently satisfiable while the lane reads one figure.",
+      "text": "\u00a75 as written adds a wait-watching wrapper around admission timing that zeroes the published slots, beside the router's existing refusal point `_slot_count` (router.py:496) which zeroes only on the \"paused\" verdict, and beside the queue snapshot that already knows `oldest_wait_seconds` (router.py:806); the section states no reason why the verdict/`_slot_count` path cannot gain the wait bound, so a second zeroing path can admit through one and not the other",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:74",
+      "id": "interface_budget-1",
+      "reason": "the plan must say whether the untested harness is superseded and whether the two new knobs replace an existing sizing rule, or an author cannot tell what the cutover deletes.",
+      "text": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds a tested lane-simulation module whose harness already exists untested at docs/evidence/fragments/the-local-lane-delivers-its-plateau/sim.py, \u00a74 adds a `margin` setting and \u00a75 a wait bound in the gate's control file (schema at imas_ambix/agent/router.py:239 `_GateSettings`, read at router.py:949-1006), and none of the three sections names what it retires or merges: whether sim.py is removed or moved, and whether any existing control-file key or published `worker_slots_basis` value is retired",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "c951178e1c85c920dc68617f28c3fd98e6f03444",
+  "plan_fingerprint": "06499b704091b300bd9992dd67e86c3f328e0f79f8b270076a433244cb7854d5",
+  "plan_slug": "the-local-lane-delivers-its-plateau",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261118T065511579075-plan-review-of-the-local-lane-delivers-its-plateau",
+  "reviewed_blob_sha": "d005c0d7036763d74e9f3aaada61add02c583a44",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a73\u2013\u00a76 would put the interval record, the offered-load duty, the published slot offers and the window utilisation fields behind four separate readers of the same request rows instead of one module that owns the interval and emits the whole lane-document block.",
+    "duplicate_owner": "a finding \u2014 the simulation's ledger and the window statistics are already owned by imas_ambix/agent/router.py:323 `_AdmissionLedger` and imas_ambix/agent/lane_callers.py:384 `_record_tail` / :675 `_history_from_rows`, and the reviewed design neither extends nor retires the script copies listed in the finding.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 as supplied; \u00a73 adds a tested simulation module over the existing untested harness and \u00a74/\u00a75 add two gate-control-file settings, and none of the three sections names what it retires or merges, or why nothing can be.",
+    "reuse_search": "pass \u2014 the endpoint's arithmetic already exists behind `_AdmissionLedger` (imas_ambix/agent/router.py:323) and `lane_callers._history_from_rows` (imas_ambix/agent/lane_callers.py:675), and the untested harness `docs/evidence/fragments/the-local-lane-delivers-its-plateau/sim.py` already simulates the lane, so \u00a73\u2013\u00a76 can extend owners rather than invent machinery; the reuse map is carried in the duplicate_owner finding below.",
+    "thin_wrapper": "a finding \u2014 \u00a75's windowed gate-wait statistic would be a new layer that reads admission waits beside the router's existing wait observation (router.py:806) and slot refusal point, with no reason given why `_AdmissionLedger.snapshot` (router.py:377) or `_slot_count` (router.py:496) cannot carry it."
+  },
+  "section_digests": {
+    "_document": "13216356f35e599701994f523984f872e0fb46871f056399ba39d9f61c362625",
+    "s1": "ddc835fd303090d98490a5c9d342cca9a24e4efe1dd156a993b609bc3faeb6c2",
+    "s2": "423e76dd6883c004280c9ce00b01ba4ccced81a8107dff681fd0fac2e27ff802",
+    "s3": "5b66f81f6e808c1d686325d4e411cd8c5b13532173929e9b1e6b895f6dc76a13",
+    "s4": "0ff0f7f074e888abbdfeab57737d9aa4016f713fb33e7c5e3981f73e4edeed54",
+    "s5": "3f2ae7e0923eadf4e50c7dd998cafd9240deac32eb30a27a79d4bab918e6ea4d",
+    "s6": "a45231a90dc46ae2c16cc27284ee9df17e51bfce69eeee8b54ffb65a1f480d00",
+    "s7": "6498f3d9a8b765fe02f95daf306c5eebe1f24721973abcbe828238bcf8dfb6ef",
+    "s8": "d4ba166041eba11e63ac4d457af8c8bf8e3a4a652c677f6c36d49c72a4be5ab0"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T07:11:23.673588+00:00",
+  "total": null
+}
