@@ -1,0 +1,84 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run records baseline_suite and after_suite as null in classification.json; the only suites on record are gate-1326060.log (7 passed, EXIT=0, revision 0cdfd34a) and gate-1326083.log (7 passed, EXIT=0, revision 1575f3ee), so the head adds no failing id and the count is 0",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-11-18T12:03:26.219Z",
+  "dispatched_at": "2026-11-18T12:03:11Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/lane_sim.py",
+      "line": "123",
+      "severity": "non-blocking",
+      "text": "non-blocking: read_receipts re-implements the receipt-file reader that imas_ambix/agent/request_receipts.py:603 read_receipt_rows owns \u2014 its docstring at imas_ambix/agent/receipt_bins.py:83-92 says every reader reaches the rows through it rather than opening a receipts path itself \u2014 and it silently drops a malformed line where the owner raises."
+    },
+    {
+      "file": "imas_ambix/agent/lane_sim.py",
+      "line": "172",
+      "severity": "non-blocking",
+      "text": "non-blocking: the arrival arithmetic (admitted minus gate_wait_s) is a second copy of imas_ambix/agent/request_receipts.py:618 receipt_interval, so a change to how a typo row's arrival is derived would move the callee and not the simulation."
+    },
+    {
+      "file": "tests/test_agent_lane_sim.py",
+      "line": "135",
+      "severity": "non-blocking",
+      "text": "non-blocking: `assert sim.rate_at(LANE_WIDTH) == calibration.rate[LANE_WIDTH]` compares the function's return against the same dict the test constructed and passed into LaneSim, so it holds for any code that does not raise, including one that returns the wrong key."
+    },
+    {
+      "file": "imas_ambix/agent/lane_sim.py",
+      "line": "244",
+      "severity": "non-blocking",
+      "text": "non-blocking: `while index < len(ordered) and ordered[index].run is None:` is unreachable because read_receipts maps a missing run id to \"unkeyed\", so the branch documents an unkeyed-row path that never runs and the rows it claims to skip are actually admitted under a shared name."
+    },
+    {
+      "file": "tests/test_agent_lane_sim.py",
+      "line": "83",
+      "severity": "non-blocking",
+      "text": "non-blocking: the negative-control test asserts only that the run's median wait exceeds 10 s and the measured-wait tolerance; it never asserts the plateau rate, so a zero-think run that starved below the plateau would still pass the control the done-when defines."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/s3.html",
+      "line": "7",
+      "severity": "non-blocking",
+      "text": "non-blocking: the fragment cites gate-1326083.log beside the revision 0cdfd34a and `7 passed in 5.33s`, but that log's own header reads revision 1575f3ee and 5.18 s; the run it describes is gate-1326060.log, so the citation names the wrong log."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read all three commits against 31a74b6 \u2014 0cdfd34a adds the module, the test and three receipt windows, 1575f3ee adds the s3 fragment, a457a9cb amends one citation line in that fragment; the code under test is unchanged between the gated revision 0cdfd34a and the head a457a9cb.",
+    "done_when": "the done_when at docs/plans/the-local-lane-delivers-its-plateau.html:83 names a reproduction within 5% of 434 tok/s and within 2 s of a 2.5 s median gate wait plus a zero-think negative control above 10 s; tests/test_agent_lane_sim.py:82-97 asserts each of those against the plan's own constants.",
+    "goal": "read the s3 section of docs/plans/the-local-lane-delivers-its-plateau.html against the landed imas_ambix/agent/lane_sim.py, tests/test_agent_lane_sim.py and tests/data/lane_receipts/*.jsonl.gz; the simulation, its calibration from router receipt rows, the router-ledger slot source and the three committed windows are all present, with the caller fields absent from the committed rows.",
+    "manifest": "read the reviewed run's manifest.md; it records status complete, ten changed paths, the gate command, the green log gate-1326083.log and the red log negative-control-1326059.log, and states no baseline_suite or after_suite arms.",
+    "write_paths": "the declared paths are imas_ambix/agent, tests, the evidence fragment directory and its s3 file; every one of the six changed paths in 31a74b6..a457a9cb lies inside them (imas_ambix/agent/lane_sim.py, tests/test_agent_lane_sim.py, three tests/data/lane_receipts/*.gz, docs/evidence/fragments/the-local-lane-delivers-its-plateau/s3.html)."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_lane_sim.py:92-93 reddens on any change to calibrate_rows, mean_live_runs or the simulation that moves the rate or median wait off the plan's figures, but tests/test_agent_lane_sim.py:135 compares sim.rate_at against the calibration the test itself passed in and cannot fail independently.",
+    "evidence": "the gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103448955186-llp-the-lane-simulation-reproduces-the-measured-lane/gate-1326060.log records `7 passed` and a bare `EXIT=0` at revision 0cdfd34a, and the committed assertions, not only the fragment's prose, enforce the 5% rate and 2 s wait bounds.",
+    "fit": "imas_ambix/agent/lane_sim.py:42-90 follows the module's frozen-dataclass and named-constant idiom and passes the whole-file ruff gate recorded in gate-1326083.log, though it is the only module outside imas_ambix/agent/router.py that imports the private _AdmissionLedger.",
+    "goal_fidelity": "imas_ambix/agent/lane_sim.py:345-350 publishes slots from the router's own imas_ambix/agent/router.py:323 _AdmissionLedger and imas_ambix/agent/lane_sim.py:218 takes the worker count from the same ledger, so the instrument calls both rather than copying them.",
+    "reuse": "imas_ambix/agent/lane_sim.py:123 opens the receipt file and parses JSONL itself although imas_ambix/agent/request_receipts.py:603 read_receipt_rows is the repository's stated owner of that read, so the addition duplicates rather than extends the owner.",
+    "scope_discipline": "the six paths in 31a74b6..a457a9cb are all inside the declared write paths, and no prototype under docs/evidence/fragments/the-local-lane-delivers-its-plateau/ was touched besides the new s3.html."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the s3 section of docs/plans/the-local-lane-delivers-its-plateau.html against the landed imas_ambix/agent/lane_sim.py, tests/test_agent_lane_sim.py and tests/data/lane_receipts/*.jsonl.gz; the simulation, its calibration from router receipt rows, the router-ledger slot source and the three committed windows are all present, with the caller fields absent from the committed rows.\nVERDICT done_when: the done_when at docs/plans/the-local-lane-delivers-its-plateau.html:83 names a reproduction within 5% of 434 tok/s and within 2 s of a 2.5 s median gate wait plus a zero-think negative control above 10 s; tests/test_agent_lane_sim.py:82-97 asserts each of those against the plan's own constants.\nVERDICT write_paths: the declared paths are imas_ambix/agent, tests, the evidence fragment directory and its s3 file; every one of the six changed paths in 31a74b6..a457a9cb lies inside them (imas_ambix/agent/lane_sim.py, tests/test_agent_lane_sim.py, three tests/data/lane_receipts/*.gz, docs/evidence/fragments/the-local-lane-delivers-its-plateau/s3.html).\nVERDICT manifest: read the reviewed run's manifest.md; it records status complete, ten changed paths, the gate command, the green log gate-1326083.log and the red log negative-control-1326059.log, and states no baseline_suite or after_suite arms.\nVERDICT diff: read all three commits against 31a74b6 \u2014 0cdfd34a adds the module, the test and three receipt windows, 1575f3ee adds the s3 fragment, a457a9cb amends one citation line in that fragment; the code under test is unchanged between the gated revision 0cdfd34a and the head a457a9cb.\nCALL_SITES: none\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: imas_ambix/agent/lane_sim.py:345-350 publishes slots from the router's own imas_ambix/agent/router.py:323 _AdmissionLedger and imas_ambix/agent/lane_sim.py:218 takes the worker count from the same ledger, so the instrument calls both rather than copying them.\nSCORE evidence: 16\nJUSTIFICATION evidence: the gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103448955186-llp-the-lane-simulation-reproduces-the-measured-lane/gate-1326060.log records `7 passed` and a bare `EXIT=0` at revision 0cdfd34a, and the committed assertions, not only the fragment's prose, enforce the 5% rate and 2 s wait bounds.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: the six paths in 31a74b6..a457a9cb are all inside the declared write paths, and no prototype under docs/evidence/fragments/the-local-lane-delivers-its-plateau/ was touched besides the new s3.html.\nSCORE durability: 14\nJUSTIFICATION durability: tests/test_agent_lane_sim.py:92-93 reddens on any change to calibrate_rows, mean_live_runs or the simulation that moves the rate or median wait off the plan's figures, but tests/test_agent_lane_sim.py:135 compares sim.rate_at against the calibration the test itself passed in and cannot fail independently.\nSCORE fit: 16\nJUSTIFICATION fit: imas_ambix/agent/lane_sim.py:42-90 follows the module's frozen-dataclass and named-constant idiom and passes the whole-file ruff gate recorded in gate-1326083.log, though it is the only module outside imas_ambix/agent/router.py that imports the private _AdmissionLedger.\nSCORE reuse: 4\nJUSTIFICATION reuse: imas_ambix/agent/lane_sim.py:123 opens the receipt file and parses JSONL itself although imas_ambix/agent/request_receipts.py:603 read_receipt_rows is the repository's stated owner of that read, so the addition duplicates rather than extends the owner.\nFINDING imas_ambix/agent/lane_sim.py:123 non-blocking: read_receipts re-implements the receipt-file reader that imas_ambix/agent/request_receipts.py:603 read_receipt_rows owns \u2014 its docstring at imas_ambix/agent/receipt_bins.py:83-92 says every reader reaches the rows through it rather than opening a receipts path itself \u2014 and it silently drops a malformed line where the owner raises.\nFINDING imas_ambix/agent/lane_sim.py:172 non-blocking: the arrival arithmetic (admitted minus gate_wait_s) is a second copy of imas_ambix/agent/request_receipts.py:618 receipt_interval, so a change to how a typo row's arrival is derived would move the callee and not the simulation.\nFINDING tests/test_agent_lane_sim.py:135 non-blocking: `assert sim.rate_at(LANE_WIDTH) == calibration.rate[LANE_WIDTH]` compares the function's return against the same dict the test constructed and passed into LaneSim, so it holds for any code that does not raise, including one that returns the wrong key.\nFINDING imas_ambix/agent/lane_sim.py:244 non-blocking: `while index < len(ordered) and ordered[index].run is None:` is unreachable because read_receipts maps a missing run id to \"unkeyed\", so the branch documents an unkeyed-row path that never runs and the rows it claims to skip are actually admitted under a shared name.\nFINDING tests/test_agent_lane_sim.py:83 non-blocking: the negative-control test asserts only that the run's median wait exceeds 10 s and the measured-wait tolerance; it never asserts the plateau rate, so a zero-think run that starved below the plateau would still pass the control the done-when defines.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/s3.html:7 non-blocking: the fragment cites gate-1326083.log beside the revision 0cdfd34a and `7 passed in 5.33s`, but that log's own header reads revision 1575f3ee and 5.18 s; the run it describes is gate-1326060.log, so the citation names the wrong log.",
+  "review_run_id": "r-20261118T114531588284-review-of-llp-the-lane-simulation-reproduces-the-measured-lane-a457a9cbfb9d",
+  "reviewed_base_sha": "31a74b6e1132cd5388dcb902d993069d29e9a084",
+  "reviewed_head_sha": "a457a9cbfb9d88513ca6874fd0f68b50cdc2ed91",
+  "reviewed_run_id": "r-20261118T103448955186-llp-the-lane-simulation-reproduces-the-measured-lane",
+  "scores": {
+    "durability": 14,
+    "evidence": 16,
+    "fit": 16,
+    "goal_fidelity": 17,
+    "reuse": 4,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T12:17:41.579717+00:00",
+  "total": 85
+}
