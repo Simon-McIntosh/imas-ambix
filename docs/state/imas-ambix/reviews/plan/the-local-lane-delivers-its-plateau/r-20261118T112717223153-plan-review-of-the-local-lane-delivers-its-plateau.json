@@ -1,0 +1,57 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-18T11:28:35.567Z",
+  "dispatched_at": "2026-11-18T11:28:20Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:110",
+      "id": "reasoning-1",
+      "reason": "either \u00a73 must declare a session-aware simulation as its deliverable or \u00a79 must restate that arm against the live lane, and until one of those is chosen the node extends a done section or fails its gate.",
+      "text": "\u00a79's second arm requires \"the \u00a73 simulation\" to run one session with an unbounded queue beside four sessions holding one worker each and compares the result with the same workload as a single session, but \u00a72 records that \"reckon's per-session shares and holds bound the live worker count in ways the simulation does not carry\" and the prototype `sim.py` models one lane-wide admission rule with no session grouping, while \u00a73's deliverable only requires the router's slot rule to be called and never names per-session allocation \u2014 so the arm measures something the instrument the plan declares cannot produce, and a worker reads it as either an undispatched extension of \u00a73 or a check it must fake",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:110",
+      "id": "done_when-1",
+      "reason": "the worker must choose between honouring \u00a74's record (21 free, negative control no longer reproducing the starvation) and honouring the stated input (7 free, per-session and lane-wide counts disagreeing as they do today), and neither passes as written.",
+      "text": "the unit test is specified as \"a capacity of 32 with five sessions holding 6, 1, 2, 1 and 1 live runs and 7 free slots\", but under \u00a74's rule the lanes' free slots are capacity less the lane-wide live runs, so 11 live runs at capacity 32 leave 21 free, and 7 free is reachable only with the 25-run lane-wide count the same section forbids the per-session block to disagree with \u2014 the negative control \"the same input with one reserve held per session offers the session holding 6 nothing\" also needs that stale count, since four per-session reserves of 2 leave 13 of 21 slots to the session at its share and would not starve it at all",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "1bb525eca2c6be3ee543d48322903cdd01b57d7e",
+  "plan_fingerprint": "ec5cd393844f8cb303ca35492b12c845d16d83b33cc8687840b5b4a77636132e",
+  "plan_slug": "the-local-lane-delivers-its-plateau",
+  "plan_version": 3,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261118T112717223153-plan-review-of-the-local-lane-delivers-its-plateau",
+  "reviewed_blob_sha": "4232d8b848ef0ee9f017e8fac59248acee1237f7",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `lane-borrow-reserve.json` is in `git ls-files` (65 lines, `observed_at` 2026-11-18T11:25:32Z, `fair_share` 6, `borrow_reserve` 2, lane-wide `worker_slots` 7 with per-session 0/4/5/5/5, matching the Measured paragraph); \"\u00a74\" and \"\u00a73\" resolve to `#s4` and `#s3` in the snapshot.",
+    "done_when": "a finding \u2014 `s9:110` fixes the document at \"a capacity of 32\" with 11 live runs across the five sessions and \"7 free slots\", a pair that only holds when the lane-wide live count is 25, which is exactly the count \u00a74 removes; the negative control's reproduction also depends on that stale count.",
+    "evidence_paths": "pass \u2014 `s9:108` cites the committed `docs/evidence/fragments/the-local-lane-delivers-its-plateau/lane-borrow-reserve.json` and `s9:110` logs to `docs/evidence/fragments/.../s9.html`, the same durable fragment directory \u00a73, \u00a74, \u00a75, \u00a76, \u00a77 and \u00a78 use.",
+    "naming": "pass \u2014 the section states a mechanism (a lane-wide total on the slots held back for below-share sessions) and carries no plan label, stage name or ticket number into the symbol or field it would create.",
+    "reasoning": "two findings \u2014 `s9:108` attributes the starvation to the per-session reserve and the cited document supports it (four below-share sessions at 1, 2, 1, 1 reserve min(6\u2212u, 2) = 8 against 7 free, so the session at its share is offered max(0, min(7, 7\u22128)) = 0), but `s9:110` requires the \u00a73 simulation to carry a per-session model that \u00a72 states the simulation does not carry and \u00a73 does not declare as a deliverable.",
+    "single_goal": "pass \u2014 `s9:108-109` names one deliverable, a lane-wide cap of one borrow reserve on the slots held back for below-share sessions, and the per-session/lane-wide agreement is the same record \u00a74 already defines rather than a second one.",
+    "wiring": "pass \u2014 `s9` depends on `s4`, which depends on `s3`, so the \u00a73 simulation is available to \u00a79's duration; `s8` now depends on `s5`, `s6`, `s9`, matching its deliverable (\"the new slot rule, the wait bound and the utilisation fields deployed\"); the declarations table lists `s9` implementable and the head metadata is well formed."
+  },
+  "section_digests": {
+    "_document": "b2955de4ef54f85ae03569396f6c71314d5a0752765dd268d6449986dba88c96",
+    "s1": "ddc835fd303090d98490a5c9d342cca9a24e4efe1dd156a993b609bc3faeb6c2",
+    "s2": "423e76dd6883c004280c9ce00b01ba4ccced81a8107dff681fd0fac2e27ff802",
+    "s3": "e5260d7cb06bccfb1cb3e0a30a1dbc0e30117a7799ea703b9610ce44b5545299",
+    "s4": "f6c8ce50860b33892b1495c079f2731277ac17074f32cbb08071928f557562ef",
+    "s5": "2dd74fdf1b577ae877adb3845323edaf1615961b1f4210a6f0ebae1e3b288f4e",
+    "s6": "45a75934dba3285772f81a282e946231517f5f4aca01736424aac9dec6b8db7e",
+    "s7": "6498f3d9a8b765fe02f95daf306c5eebe1f24721973abcbe828238bcf8dfb6ef",
+    "s8": "ca2ed7a06df8a9685cf1420e56f92eecd5918ae501b965b92a5c4630b57c9755",
+    "s9": "d359dbc518f0790c3c96c46c1b0b0c1dff6e79d0aa9b226af04bc291187d24d4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T11:36:30.457892+00:00",
+  "total": null
+}
