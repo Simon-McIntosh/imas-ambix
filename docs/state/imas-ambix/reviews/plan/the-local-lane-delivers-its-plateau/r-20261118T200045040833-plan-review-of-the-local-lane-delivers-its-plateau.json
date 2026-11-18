@@ -1,0 +1,57 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-18T20:42:32.825Z",
+  "dispatched_at": "2026-11-18T20:41:59Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:84",
+      "id": "done_when-1",
+      "reason": "either the default margin or the missing 15 s / 97% bounds must move, and a node that builds to the stated numbers passes the live instrument and fails the plan's own record.",
+      "text": "\u00a74's done-when requires the default margin 1.5 to deliver at least 97% of the simulated plateau with a 90th-percentile gate wait under 15 s on both workloads, but \u00a72's own table (line 63, \"Offered load \u00d7 1.5\", 444 tok/s at 8.9/16.3 s) and `docs/evidence/fragments/the-local-lane-delivers-its-plateau/sim-offered-w12.log` (x1.5 row: tok/s 444, wait p90 16.3 s) record 16.3 s p90 on the whole-night workload, and 444 tok/s is 92.4% to 95.4% of every plateau figure the plan itself states (\u00a71 \"about 470\", `s6.html` 480.7 fed / 465.3 starved); the arm therefore fails at the margin the same unit just fixed as the default, so the node's gate cannot pass as written",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:83",
+      "id": "reasoning-1",
+      "reason": "the default margin is the unit's central decision, and a basis that cannot be re-run leaves the decision resting on a number a reader cannot check.",
+      "text": "\u00a74 justifies the new default with \"in the \u00a73 simulation a margin of 1.25 leaves the starved workload at 95.9% to 98.9% of its plateau across three seeds\", but the committed evidence has no margin-1.25 case for the offered-load rule (`sim-offered-w12.log` and `late-offered.log` carry x1.0, x1.1, x1.2, x1.3, x1.5 only) and `imas_ambix/agent/lane_sim.py` exposes no margin control at all, so the figure is presented as a measurement with nothing behind it, while the nearest grid points read differently (x1.2 \u2192 84% of time at width, x1.3 \u2192 92.8% on the whole-night workload)",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "ac0fb840b57501ceb3519aad4f686afcdd3815aa",
+  "plan_fingerprint": "48b63cd363d4a8a4a2ced4d22524a5f8d9a68425304114caf919e033243f2296",
+  "plan_slug": "the-local-lane-delivers-its-plateau",
+  "plan_version": 11,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261118T200045040833-plan-review-of-the-local-lane-delivers-its-plateau",
+  "reviewed_blob_sha": "cf05da85fbcd4dd837d844b723ef2785f709e952",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 \u00a74 cites \u00a73 by section and the evidence fragment path under the existing `docs/evidence/fragments/the-local-lane-delivers-its-plateau/` directory; nothing renamed or absent is cited.",
+    "done_when": "a finding \u2014 \u00a74's new done-when fixes a 15 s p90 gate wait and 97% of the plateau at the default margin 1.5, both of which the plan's own \u00a72 table and evidence logs contradict at that margin.",
+    "evidence_paths": "pass \u2014 \u00a74 logs to `docs/evidence/fragments/the-local-lane-delivers-its-plateau/s4.html`, a durable repo path beside the existing fragment directory.",
+    "naming": "pass \u2014 `worker_slots`, `live_runs`, `capacity`, `margin` are mechanism names; no plan label, section number or ticket reaches a published lane document field.",
+    "reasoning": "a finding \u2014 \u00a74 now states a margin-1.25 measurement \"in the \u00a73 simulation\" that no kept instrument or committed evidence supports, and it is the stated reason for moving the default from 1.25 to 1.5.",
+    "single_goal": "pass \u2014 \u00a74 carries one deliverable (the live-run, capacity and slot fields from one record of request intervals) with the simulation as its check, not a second deliverable.",
+    "wiring": "pass \u2014 `plan-section-depends-on` gives s4 only `#s3`, which exists and is declared done; s5 and s9 depend on s4, and no relationship points at a node the plan does not have."
+  },
+  "section_digests": {
+    "_document": "b2955de4ef54f85ae03569396f6c71314d5a0752765dd268d6449986dba88c96",
+    "s1": "ddc835fd303090d98490a5c9d342cca9a24e4efe1dd156a993b609bc3faeb6c2",
+    "s2": "423e76dd6883c004280c9ce00b01ba4ccced81a8107dff681fd0fac2e27ff802",
+    "s3": "e5260d7cb06bccfb1cb3e0a30a1dbc0e30117a7799ea703b9610ce44b5545299",
+    "s4": "2ea3ef51f47edc1f0a7f79bc91a4912b0ccbd6e420c40880acb4e01bad892a17",
+    "s5": "2dd74fdf1b577ae877adb3845323edaf1615961b1f4210a6f0ebae1e3b288f4e",
+    "s6": "45a75934dba3285772f81a282e946231517f5f4aca01736424aac9dec6b8db7e",
+    "s7": "6498f3d9a8b765fe02f95daf306c5eebe1f24721973abcbe828238bcf8dfb6ef",
+    "s8": "ca2ed7a06df8a9685cf1420e56f92eecd5918ae501b965b92a5c4630b57c9755",
+    "s9": "cbc8f23f42f9a06765f83c8dca00b9656bf32f3becfb739cebe18356e1cf1619"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T20:50:27.145113+00:00",
+  "total": null
+}
