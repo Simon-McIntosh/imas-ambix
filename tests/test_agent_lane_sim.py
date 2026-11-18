@@ -150,8 +150,8 @@ def test_the_slot_count_is_the_router_ledgers_own():
 #   * at margins 1.0, 1.25 and 1.5, the pool's ten-minute means after the first
 #     hour stay within 15% of its mean over the last hour, on both committed
 #     think-time regimes;
-#   * at margin 1.25 the rule delivers at least 97% of the simulated plateau
-#     with a 90th-percentile gate wait under 15 s;
+#   * at the default margin of 1.5 the rule delivers at least 97% of the
+#     simulated plateau with a 90th-percentile gate wait under 15 s;
 #   * negative control: with duty measured over the live span including the
 #     gate wait, the same run and margin exceeds 200 workers.
 
