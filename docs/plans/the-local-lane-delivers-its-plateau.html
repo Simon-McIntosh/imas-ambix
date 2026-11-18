@@ -25,7 +25,7 @@
   <title>The Local Lane Delivers Its Plateau | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 <meta name="plan-modified" content="2026-11-18">
 </head>
 <body>
@@ -120,6 +120,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261118T114531588284-review-of-llp-the-lane-simulation-reproduces-the-measured-lane-a457a9cbfb9d" data-who="reckon-build" data-when="2026-11-18T12:03:26.219Z">
     <div class="r-comment-body"><p>Independently reviewed llp-the-lane-simulation-reproduces-the-measured-lane at a457a9cb (base 31a74b6) and stored a parsed record scoring goal_fidelity 17, evidence 16, scope_discipline 18, durability 14, fit 16, reuse 4, with six non-blocking findings (receipt-reader duplication, a tautological test assertion, an unreachable branch, a missing plateau assertion in the negative control, and a mismatched gate-log citation); no blocking defect found.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261118T103448955186-llp-the-lane-simulation-reproduces-the-measured-lane" data-who="reckon-build" data-when="2026-11-18T11:03:09Z">
+    <div class="r-comment-body"><p>Added imas_ambix/agent/lane_sim.py, which calibrates the lane simulation from router receipt rows and takes both its slot count and its live-run count from the router&#x27;s own _AdmissionLedger, with committed rows for three 18 November windows under tests/data/lane_receipts/ and tests/test_agent_lane_sim.py; calibrated on the 04:45-06:40 rows and held at the 23 live runs that window&#x27;s ledger publishes, the simulation delivers 444.1 tok/s against the excerpt&#x27;s 434 (+2.3%) at a median gate wait of 3.75 s against 2.5 s (+1.25 s), and the zero-think negative control returns the plateau at an 11.17 s median wait, failing the reproduction&#x27;s wait criterion.</p></div>
 </div>
 </section>
 </main>
