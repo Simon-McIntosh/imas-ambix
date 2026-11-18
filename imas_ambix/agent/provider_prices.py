@@ -44,11 +44,12 @@ from __future__ import annotations
 import json
 import os
 import re
-import statistics
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from imas_ambix.agent.median import median
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -411,15 +412,6 @@ def _declares_fewer_than_eight_bits(quantization: object) -> bool:
     return match is not None and int(match.group(1)) < 8
 
 
-def _median(values: list[float]) -> float:
-    """The median a published rate is summarised with, or its only rate.
-
-    The standard library's estimator, which averages the two middles of an
-    even count, is the same one the window figures and the decode bins take
-    their medians with. Callers here pass at least one rate, which that
-    estimator requires.
-    """
-    return float(statistics.median(values))
 
 
 def _observations(history: object) -> list[dict]:
@@ -493,7 +485,7 @@ def provider_median_in_force(history: object, slug: str, when: float) -> dict | 
     if not surviving:
         return None
     return {
-        key: _median([rate[key] for rate in surviving])
+        key: median([rate[key] for rate in surviving])
         for key in ("prompt", "cache_read", "completion")
     }
 

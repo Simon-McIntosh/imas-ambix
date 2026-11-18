@@ -34,11 +34,12 @@ therefore attributes every such second to no slots offered.
 from __future__ import annotations
 
 import math
-import statistics
 from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from imas_ambix.agent.median import median_or_none
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -423,12 +424,12 @@ def window_figures(
     # ordinarily waited at the gate. It is taken over the requests admitted in
     # the window, which is the population that actually waited at the gate --
     # requests still queued have no wait to measure yet and a request admitted
-    # earlier belongs to an earlier window. The estimator is the standard
-    # library's, the same one decode_bins takes its medians with: it averages
-    # the two middles of an even count, which is the rule this figure is named
-    # for, and restating that rule here would be a second answer to it.
+    # earlier belongs to an earlier window. The estimator is the package's one
+    # median, which averages the two middles of an even count: a reader who
+    # compares this figure against a benchmark's median is promised that both
+    # are the same estimator.
     waits = [interval.gate_wait_seconds for interval in in_window]
-    median_wait = statistics.median(waits) if waits else None
+    median_wait = median_or_none(waits)
     mean = sweep["mean_in_service"]
     share = sweep["share_at_width"]
     below = sweep["below_width_seconds"]
