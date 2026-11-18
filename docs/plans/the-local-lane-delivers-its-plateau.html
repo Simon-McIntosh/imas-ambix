@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="the-local-lane-delivers-its-plateau">
+  <meta name="plan-title"     content="The Local Lane Delivers Its Plateau">
+  <meta name="plan-summary"   content="Worker slots follow the load live workers offer, and the lane document says how full the lane ran and why it fell short">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="12.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint"    content="S27">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="agent-serving,gpu-deployment">
+  <meta name="plan-after"     content="local-lane-admission-control">
+  <meta name="plan-section-depends-on" content="{&quot;s4&quot;:[&quot;the-local-lane-delivers-its-plateau#s3&quot;],&quot;s5&quot;:[&quot;the-local-lane-delivers-its-plateau#s4&quot;],&quot;s7&quot;:[&quot;the-local-lane-delivers-its-plateau#s6&quot;],&quot;s8&quot;:[&quot;the-local-lane-delivers-its-plateau#s5&quot;,&quot;the-local-lane-delivers-its-plateau#s6&quot;]}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
+  <title>The Local Lane Delivers Its Plateau | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — What the lane delivers now</h2>
+<section data-reckon="section" data-id="s1" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
+    <p>The router's request receipts for 16 to 18 November were replayed to reconstruct, second by second, how many requests the gate had in service and how many waited. Three facts come out of them, and they decide what this plan builds.</p>
+    <p><strong>The lane's output is flat from about nine requests in service.</strong> One stream generates 118 tok/s alone and 39 tok/s when twelve run together, so all streams together deliver about 400 tok/s at six, 450 at nine and 470 at twelve. The gate's width of 12 already sits on the plateau, and a wider gate adds almost nothing: the plateau, not the width, is what the lane can deliver.</p>
+    <figure>
+      <img src="/imas-ambix/figures/the-local-lane-delivers-its-plateau/rate-against-requests-in-service.svg" alt="Generation rate of one stream and of all streams together against the number of requests in service">
+      <figcaption>Generation rate against requests in service, from 11,280 receipts between 00:00 and 06:40 UTC on 18 November. All streams together rise to about 450 tok/s by nine requests and gain little after; one stream falls from 118 to 39 tok/s.</figcaption>
+    </figure>
+    <p><strong>When work is queued, the lane already runs near that plateau.</strong> Between 04:45 and 06:40 UTC on 18 November, with a deep queue behind it, the gate averaged 11.10 requests in service of 12 and delivered 434 tok/s. Requests waited a median of 2.5 s at the gate and 11.0 s at the 90th percentile, and 62% of them waited more than a second. A panel reading of 7 in use and nothing waiting is one instant of a count that swings between about 7 and 12; the window is what shows the lane full.</p>
+    <p><strong>The loss is in the hours the lane is underfed.</strong> In the two hours from midnight the same day the gate averaged 4.0 in service and delivered 232 tok/s; from 02:00 to 04:45 it averaged 1.7 and delivered 113 tok/s. Across 17 November the lane delivered 227 tok/s on average, about half its plateau, and ten of its 24 hours fell below 200 tok/s. No admission rule recovers those hours: nothing was asking for the lane.</p>
+    <figure>
+      <img src="/imas-ambix/figures/the-local-lane-delivers-its-plateau/delivered-rate-by-hour.svg" alt="Delivered token rate for each hour from 16 to 18 November against the plateau">
+      <figcaption>Delivered rate for each hour, 16 November 00:00 to 18 November 07:00 UTC. Hours below half the plateau are red: 15 of the 53 hours shown.</figcaption>
+    </figure>
+    <p>Two defects in the published worker slots are real all the same. The slot figure counts every run that made a request in the last fifteen minutes as live, so finished runs hold slots until they age out, and a lane with fifteen live workers reads as holding twenty-four. And the figure is sized so that average demand equals the width, which leaves the gate below its width about a third of the time. Both are worth fixing, for a gain of a few percent in a fed hour and a faster refill when workers end. The larger gain needs the lane to say <em>why</em> it ran below its plateau, so the underfed hours can be traced to their cause.</p>
+    <p>The measurements, their commands and the scripts that produced them are in <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/</code>: <code>occupancy-fed.log</code>, <code>occupancy-early.log</code>, <code>occupancy-starved.log</code>, <code>rate-by-load.log</code> and <code>hourly.log</code>.</p>
+
+    <h2 id="s2">§2 — What a prototype of the admission rule shows</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
+    <p>A simulation of the lane was calibrated from the same receipts: each worker's think time between requests, the tokens each request generates, the number of requests a run makes, and the per-stream rate at each load. Workers end and are replaced through a lane document published every 30 s and an admission pass every 30 s, with a launch taking 45 to 120 s to reach its first request. With a fixed 28 workers it delivers 430 tok/s at a median gate wait of 1.5 s, against the 434 tok/s and 2.5 s measured, so it reproduces the lane it was calibrated on.</p>
+    <p>Four ways of sizing the slots were compared over four simulated hours and three seeds each.</p>
+    <table>
+      <thead><tr><th>Slot rule</th><th>Delivered [tok/s]</th><th>Time at width</th><th>Gate wait, median / p90 [s]</th><th>Workers</th></tr></thead>
+      <tbody>
+        <tr><td>Duty per live run, no margin</td><td>435</td><td>74%</td><td>1.5 / 7.1</td><td>26</td></tr>
+        <tr><td>Duty per live run, capacity × 1.1</td><td>445</td><td>100%</td><td>42 / 153</td><td>83</td></tr>
+        <tr><td>Duty per live run, capacity × 1.25</td><td>444</td><td>100%</td><td>607 / 1902</td><td>940</td></tr>
+        <tr><td>Feed while the gate is below width more than 10% of two minutes</td><td>443</td><td>96%</td><td>9.9 / 24</td><td>36</td></tr>
+        <tr><td>Offered load × 1.0</td><td>424</td><td>52%</td><td>0.0 / 4.3</td><td>25</td></tr>
+        <tr><td>Offered load × 1.2</td><td>438</td><td>84%</td><td>3.1 / 9.1</td><td>29</td></tr>
+        <tr><td>Offered load × 1.3</td><td>442</td><td>93%</td><td>4.7 / 11.4</td><td>30</td></tr>
+        <tr><td>Offered load × 1.5</td><td>444</td><td>99%</td><td>8.9 / 16.3</td><td>33</td></tr>
+      </tbody>
+    </table>
+    <p><strong>A margin on the measured duty runs away.</strong> A worker's share of time in service falls as it waits longer at the gate, so a rule that divides the width by that share reads a fuller lane as room for more workers. With any margin above one it admits without bound: 83 workers at × 1.1 and 940 at × 1.25. This is the rule the earlier reading of the slot figures pointed towards, and the prototype rules it out.</p>
+    <p><strong>Sizing from offered load is stable at every margin.</strong> The load a worker <em>would</em> offer with no gate wait is its service time over its service plus think time, with the time it spent waiting left out. That figure does not move as the gate fills, so the worker count settles at the margin times the width over that load. The margin is then a dial with a known cost: each step buys a few tok/s and a few seconds of gate wait.</p>
+    <p><strong>It follows the workload.</strong> Think time averaged 20.7 s over the whole night and 6.5 s in the fed window, so the worker count that fills the lane differs by half. At a margin of 1.3 the rule settles on 30 workers for the first workload and 21 for the second, and delivers 442 and 441 tok/s. A fixed worker count tuned for one would starve or flood the other.</p>
+    <figure>
+      <img src="/imas-ambix/figures/the-local-lane-delivers-its-plateau/simulated-rate-and-wait-against-workers.svg" alt="Simulated delivered rate and 90th percentile gate wait against the number of workers, for fixed worker counts and for the offered-load rule on two workloads">
+      <figcaption>Simulated delivered rate (left) and 90th-percentile gate wait (right) against workers on the lane, at width 12. Grey: fixed worker counts on the whole-night workload. Squares: the offered-load rule at margins 1.0, 1.1, 1.2, 1.3 and 1.5, on the whole-night workload (blue) and the late-window workload (green).</figcaption>
+    </figure>
+    <p>The simulated rule "as it stands" is not a measurement of the live lane: reckon's per-session shares and holds bound the live worker count in ways the simulation does not carry, so the live figures in §1 are the baseline. Gate widths of 10 and 16 were also simulated; 10 caps the lane at 400 tok/s, and 16 reaches 450 only on the assumption that output stays flat beyond twelve, which the receipts cannot test. The tables and logs are <code>sim-w10.log</code>, <code>sim-w12.log</code>, <code>sim-w16.log</code>, <code>sim-offered-w12.log</code>, <code>late-rules.log</code> and <code>late-offered.log</code> in the same evidence directory.</p>
+
+    <h2 id="s3">§3 — The lane simulation is a kept instrument that reproduces the measured lane</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p><strong>Deliverable.</strong> The repository holds a lane simulation and its calibration from request receipts as tested code, so a change to the slot rule is tried against the lane's measured behaviour before it reaches the router. The slot rule the simulation exercises is the router's own, called and not copied, so the two cannot drift.</p>
+    <p><strong>Done when.</strong> A test calibrates the simulation from a committed excerpt of receipts covering 18 November 04:45 to 06:40 UTC and runs it with the worker count held at the mean live count of that window. The simulated delivered rate is within 5% of the 434 tok/s the excerpt records, and the simulated median gate wait is within 2 s of the 2.5 s it records. Negative control: the same run with every think time set to zero delivers the plateau at a median wait above 10 s, and the test fails on it. The result is logged to <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/s3.html</code> with the command and revision.</p>
+
+    <h2 id="s4">§4 — Worker slots follow the load live workers would offer</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
+    <p><strong>Deliverable.</strong> The lane document's <code>worker_slots</code> and <code>live_runs</code> describe the workers on the lane now. A run counts as live while it has a request waiting or in service, or made one within the working horizon the per-session share already uses; a run that ended earlier holds no slot. Capacity is the published margin times the gate's effective width, divided by the load one live run offers when it does not wait: its time in service over its live span less its time waiting at the gate. The margin is a setting in the gate's control file, published in the document beside the figures it produced, and defaults to 1.25.</p>
+    <p><strong>Done when.</strong> Against a ledger of fifteen live runs and nine that ended more than the working horizon ago, the document reports fifteen live runs, and its capacity is within one of the margin times the width over the offered load computed by hand from the same ledger. In the §3 simulation the rule holds its worker count within 15% of its settled value over four hours at margins 1.0, 1.25 and 1.5 on both committed workloads, and at margin 1.25 delivers at least 97% of the simulated plateau with a 90th-percentile gate wait under 15 s. Negative control: the same simulation with duty measured over the live span including gate wait, at margin 1.25, exceeds 200 workers, and the test asserts that it does. Results are logged to <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/s4.html</code>.</p>
+
+    <h2 id="s5">§5 — A long gate wait closes the slots</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p><strong>Deliverable.</strong> The slot figure cannot keep admitting into a gate that is already making requests wait too long, whatever the offered load reads. When the 90th-percentile gate wait over the last five minutes exceeds a bound set in the gate's control file, 30 s by default, the document publishes zero slots and names the wait as the reason; slots reopen when the wait falls back under the bound.</p>
+    <p><strong>Done when.</strong> In the §3 simulation, a workload whose think time drops to a third at the two-hour mark stays under a 90th-percentile gate wait of 45 s in every five-minute window after the first ten minutes following the change, and the published document carries the wait reason in the windows where slots were closed. Negative control: the same run with the bound disabled exceeds 45 s in at least one window. A unit test covers the document fields at the bound, just under it and just over it. Results are logged to <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/s5.html</code>.</p>
+
+    <h2 id="s6">§6 — The lane document says how full the lane ran and why it fell short</h2>
+<section data-reckon="section" data-id="s6" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p><strong>Deliverable.</strong> The lane document carries, for its averaging window and for the last hour, the mean number of requests in service, the share of time the gate was at its width, the delivered completion-token rate, and the lane's plateau rate as estimated from its own receipts. It also splits the time the gate spent below its width into two parts the router can tell apart: time when it was offering slots that nobody took, and time when it was offering none. A reader can then tell an underfed lane from a throttled one without replaying receipts.</p>
+    <p><strong>Done when.</strong> For the committed receipt excerpts of the fed window (04:45 to 06:40 UTC) and the starved window (02:00 to 04:45 UTC) of 18 November, the document fields computed by the router's code match the values the evidence scripts record for those windows: mean in service within 0.1, share at width within two points, and delivered rate within 2%. In the starved window at least 90% of the time below width is attributed to slots offered and not taken. Negative control: a ledger in which the gate is paused attributes its time below width to no slots offered, and the test fails if it reads as offered. Results are logged to <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/s6.html</code>.</p>
+
+    <h2 id="s7">§7 — The live panel shows the window beside the instant</h2>
+<section data-reckon="section" data-id="s7" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p><strong>Deliverable.</strong> The lane row of the live panel shows the window figures from §6 beside the instantaneous ones: mean in service over the window next to the count in use now, the delivered rate against the plateau, and the gate wait as a median over the window next to the number waiting now. An instant below the width no longer reads as an idle lane.</p>
+    <p><strong>Done when.</strong> A render test feeds the panel a lane document with 7 in service now, a window mean of 11.1, a median gate wait of 2.5 s and nothing waiting now, and the rendered row contains all four values, each labelled as instant or window. Negative control: the same document with the window fields absent renders the instant values and marks the window as unavailable, never as zero. A rendered capture is stored at <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/s7.html</code>.</p>
+
+    <h2 id="s8">§8 — The lane holds its plateau through a measured night</h2>
+<section data-reckon="section" data-id="s8" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p><strong>Deliverable.</strong> A record of one night on the live lane with the new slot rule, the wait bound and the utilisation fields deployed, showing what the lane delivered hour by hour and, for every hour below the plateau, which of the two causes from §6 held it there.</p>
+    <p><strong>Done when.</strong> Over a window of at least eight consecutive hours on the live router, read from that window's receipts and lane documents: in every hour in which the document attributes less than 10% of its time below width to slots not taken, the delivered rate is at least 95% of the plateau estimate and the 90th-percentile gate wait is under 15 s. Every other hour is listed with its attributed cause and its share. Negative control: the same reading over 17 November, before the change, is logged beside it. The record is <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/s8.html</code>, with the hourly figure drawn from it. The reading runs as a job on <code>rigel</code>.</p>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-llp-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-11-18">
+        <h4 class="r-fu-title">Build the simulation instrument and the utilisation fields</h4>
+        <div class="r-fu-body"><p>Sections 3 and 6 wait on nothing and can start together; 4, 5, 7 and 8 follow their declared waits.</p></div>
+        <pre class="r-fu-prompt">/reckon-build the-local-lane-delivers-its-plateau</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# command: sim.py calib-1118-late.json --hours 4 --seeds 3 --width 12
+# host: 98dci4-clu-2001
+width 12, 4 h after a 30 min warm-up, mean of 3 seeds
+case                                      tok/s in svc     <9   at W wait p50    p90    p99 workers
+fixed 12 workers                            356   6.58  82.0%   0.5%      0.0    0.0    0.0    11.2
+fixed 16 workers                            412   9.85  24.3%  27.1%      0.0    0.8    4.8    15.0
+fixed 20 workers                            437  11.58   2.6%  79.9%      1.5    6.0   10.5    19.0
+fixed 24 workers                            443  11.97   0.1%  98.3%      6.1   11.6   17.3    23.0
+fixed 28 workers                            443  12.00   0.0%  99.9%     11.0   17.8   25.2    27.1
+fixed 32 workers                            443  12.00   0.0% 100.0%     15.0   22.2   30.3    31.0
+fixed 36 workers                            444  12.00   0.0% 100.0%     19.8   28.0   35.9    34.9
+fixed 44 workers                            443  12.00   0.0% 100.0%     29.0   39.0   51.2    43.1
+rule as it stands                           440  11.83   1.7%  93.7%     69.2  133.6  180.8    81.2
+live runs, duty per live span               432  11.26   5.2%  66.5%      0.2    4.6    8.8    17.7
+live runs, capacity x1.1                    443  12.00   0.0%  99.8%     39.2  136.7  199.2    68.1
+live runs, capacity x1.25                   443  12.00   0.0% 100.0%    618.9 1944.3 2277.5   945.4
+live runs, capacity x1.5                    444  12.00   0.0% 100.0%   1537.8 2839.4 3164.1  1721.5
+feed while below width >10% of 2 min        442  11.89   0.7%  94.5%      7.2   19.8   30.8    25.2
+feed while below width >25% of 2 min        441  11.86   1.1%  93.7%     10.2   22.6   34.3    27.1
+EXIT=0
