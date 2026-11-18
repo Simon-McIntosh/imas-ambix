@@ -497,6 +497,7 @@ class _AdmissionLedger:
         margin: float = DEFAULT_MARGIN,
         waiting_runs: Iterable[str] = (),
         duty_includes_wait: bool = False,
+        claim_seconds: float | None = None,
     ) -> dict[str, object]:
         """The lane's live runs, capacity and spare slots from its record.
 
@@ -513,6 +514,12 @@ class _AdmissionLedger:
         it belongs to would otherwise be invisible until its turn came.
         ``duty_includes_wait`` states the failing rule the simulation's negative
         control measures itself against; the lane never sets it.
+
+        ``claim_seconds`` is the reproduction's reading of the same record, not
+        the lane's: a run is then live while a request of it is in service or
+        ended within that many seconds, which is the population of runs whose
+        requests the averaging window shows. The lane publishes the shorter
+        working-horizon claim, because a run that stopped asking holds no slot.
         """
         window_start = now - self._window
         # The ledger's clock starts at its first admission, so a router younger
@@ -526,17 +533,22 @@ class _AdmissionLedger:
             else min(self._window, max(0.0, now - self._first_admission))
         )
         horizon_start = now - WORKING_HORIZON_SECONDS
+        # The reproduction claims a run for its window of 900 s; the lane claims
+        # it for the working horizon from its last admission.
+        claim_start = now - claim_seconds if claim_seconds is not None else None
         live_sessions: dict[str, set[str]] = {}
+        live_runs_seen: set[str] = set()
         keyed_busy = 0.0
         unkeyed_busy = 0.0
         total_busy = 0.0
-        live_runs_seen: set[str] = set()
         samples = 0
         for interval in self._intervals:
             end = now if interval.ended is None else interval.ended
-            if interval.run_id and (
-                interval.ended is None or interval.started >= horizon_start
-            ):
+            if claim_start is None:
+                claimed = interval.started >= horizon_start
+            else:
+                claimed = interval.ended is not None and interval.ended > claim_start
+            if interval.run_id and (interval.ended is None or claimed):
                 live_runs_seen.add(interval.run_id)
                 live_sessions.setdefault(
                     interval.session or UNATTRIBUTED_SESSION, set()

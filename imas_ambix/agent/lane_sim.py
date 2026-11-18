@@ -224,15 +224,20 @@ def mean_live_runs(
     width: int = LANE_WIDTH,
     period: float = PUBLISH_EVERY,
 ) -> float:
-    """The lane's mean live run count over the window, as the router publishes it.
+    """The lane's mean live run count over the window, for the reproduction.
 
     The rows are replayed through the router's own ``_AdmissionLedger`` -- each
-    request admitted at the timestamp the receipt records and released when
-    the request completed -- and the ledger is asked, once per publication
-    period, how many runs are live. That is the figure the router would have
-    published to a dispatcher for this window, so the worker count a
-    reproduction is held at is the count the lane actually ran at, and it moves
-    with any change to what the ledger calls live.
+    request admitted at the timestamp the receipt records and released when the
+    request completed -- and the ledger is asked, once per publication period,
+    how many runs are live.
+
+    The claim is the averaging window, not the router's shorter working horizon:
+    a run counts while a request of it is in service or ended inside the window,
+    which is the population of runs whose requests the window's records show.
+    That is the pool a reproduction of the lane is held at. The lane publishes
+    the working-horizon count, which is smaller, because a run that stopped
+    asking for longer than that holds no slot; the two readings are deliberately
+    different and neither is a measurement of the other.
     """
     ordered = sorted(rows, key=lambda row: row.at)
     if not ordered:
@@ -251,7 +256,12 @@ def mean_live_runs(
             interval = ledger.admit(row.run, now=row.at)
             ledger.release(interval, now=row.at + row.duration)
             index += 1
-        snapshot = ledger.snapshot(now=at, effective_width=width, verdict="open")
+        snapshot = ledger.snapshot(
+            now=at,
+            effective_width=width,
+            verdict="open",
+            claim_seconds=ADMISSION_WINDOW_SECONDS,
+        )
         published.append(int(snapshot["live_runs"]))
         at += period
     return sum(published) / len(published)
@@ -372,7 +382,10 @@ class LaneSim:
 
         The fixed-count mode is the reproduction check, not a rule: it holds
         the pool at the count it was asked for and offers exactly the room left
-        in it.
+        in it. In the rule mode the gate's queue is passed to the ledger as the
+        waiting runs it is: a worker whose request waits has not been admitted,
+        so the record alone would count the lane as emptier than it is and the
+        rule would answer a queue with more workers.
         """
         if self.fixed_workers is not None:
             held = len(self.workers) + len(self.launching)
@@ -383,6 +396,7 @@ class LaneSim:
             effective_width=self.width,
             verdict="open",
             margin=self.margin,
+            waiting_runs={str(worker) for worker in self.gate},
             duty_includes_wait=self.duty_includes_wait,
         )
         self.slots = int(snapshot["worker_slots"])

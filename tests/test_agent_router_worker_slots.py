@@ -38,31 +38,66 @@ _NOW = 10_000.0
 HORIZON = 180.0
 
 
-def _live_ledger(
+def _in_service_ledger(
     now: float,
     runs: int,
     *,
     elapsed: float = 300.0,
     session: str | None = None,
-    wait: float = 0.0,
 ) -> _AdmissionLedger:
-    """A ledger holding ``runs`` requests in service, admitted ``elapsed`` ago.
+    """``runs`` requests still in service, each admitted ``elapsed`` ago.
 
-    Each run has one request still in service, so it is live whatever its
-    admission age, and its service time is its elapsed span. ``wait`` is the
-    time it spent at the gate before admission. At the default elapsed of 300 s
-    the load one run offers is 300 / (300 + 180) = 0.625, which at width 12 and
-    margin 1.25 is a capacity of exactly 24.
+    A continuously serving run's live span is its service time, so it offers a
+    load of one: only a run that spends part of its span between requests
+    offers less. These runs are for the ratio and horizon figures, not for a
+    capacity that is meant to fall short of the gate.
     """
     ledger = _AdmissionLedger()
     for index in range(runs):
-        ledger.admit(
+        ledger.admit(f"r-{index}", session=session, now=now - elapsed)
+    return ledger
+
+
+def _live_ledger(
+    now: float,
+    runs: int,
+    *,
+    session: str | None = None,
+    wait: float = 0.0,
+) -> _AdmissionLedger:
+    """``runs`` steady runs: one 210 s request, then one of 52.5 s.
+
+    Each run asked 300 s ago, was served for 210 s, asked again 60 s ago and is
+    now 7.5 s into the second request. Its live span is (300 - 60) + 180 = 420 s
+    and it offered 262.5 s of service, so each run offers the load 0.625 -- the
+    figure width 12 and margin 1.25 turn into a capacity of exactly 24.
+    ``wait`` is the time each request spent at the gate before admission.
+    """
+    ledger = _AdmissionLedger()
+    for index in range(runs):
+        first = ledger.admit(
             f"r-{index}",
             session=session,
-            now=now - elapsed,
-            arrived=now - elapsed - wait,
+            now=now - 300.0,
+            arrived=now - 300.0 - wait,
         )
+        ledger.release(first, now=now - 90.0)
+        second = ledger.admit(
+            f"r-{index}",
+            session=session,
+            now=now - 60.0,
+            arrived=now - 60.0 - wait,
+        )
+        ledger.release(second, now=now - 7.5)
     return ledger
+
+
+#: The load each ``_live_ledger`` run offers, and the capacity it sizes.
+LOAD = 262.5 / 420.0
+
+
+def _capacity_at(margin: float, width: int = 12) -> int:
+    return math.floor(margin * width / LOAD)
 
 
 def test_ledger_sizes_capacity_from_the_load_live_runs_offer() -> None:
@@ -88,7 +123,9 @@ def test_ledger_sizes_capacity_from_the_load_live_runs_offer() -> None:
     snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
 
     service = 15 * 150.0
-    live_span = 15 * (400.0 + 180.0)
+    # First admission 400 s ago, last admission 100 s ago plus the 180 s
+    # working horizon, so each run's live span is 480 s.
+    live_span = 15 * (400.0 - 100.0 + 180.0)
     waited = 15 * 10.0
     by_hand = math.floor(1.25 * 12 / (service / (live_span - waited)))
 
@@ -160,9 +197,8 @@ def test_capacity_is_the_margin_times_the_width_over_the_load() -> None:
         snapshot = ledger.snapshot(
             now=now, effective_width=12, verdict="open", margin=margin
         )
-        load = 300.0 / (300.0 + HORIZON)
         assert snapshot["margin"] == margin
-        assert snapshot["capacity"] == math.floor(margin * 12 / load)
+        assert snapshot["capacity"] == _capacity_at(margin)
         assert snapshot["worker_slots"] == snapshot["capacity"] - 10
     # Below margin 1.0 the ten live runs exceed the capacity and the lane offers
     # no room rather than a negative number.
@@ -175,11 +211,12 @@ def test_capacity_is_the_margin_times_the_width_over_the_load() -> None:
 def test_gate_wait_is_left_out_of_the_offered_load() -> None:
     """A lane whose runs wait does not read as a lane of lighter runs.
 
-    Twelfth runs each spent 60 s at the gate before being admitted 300 s ago.
-    Counting that wait out of the span raises the load from 0.625 to 0.714 and
-    drops the capacity from 24 to 21: waiting costs the lane workers. Counting
-    the wait in would hold the capacity at 24 and admit more into a gate that is
-    already making requests wait, which is the runaway the rule exists to avoid.
+    Twelve steady runs each spent 60 s at the gate before each of their two
+    admissions. Counting that 120 s out of the 420 s live span raises the load
+    from 0.625 to 0.875 and drops the capacity from 24 to 17: waiting costs the
+    lane workers. Counting the wait in would hold the capacity at 24 and admit
+    more into a gate that is already making requests wait, which is the runaway
+    the rule exists to avoid.
     """
     now = _NOW
     ledger = _live_ledger(now, 12, wait=60.0)
@@ -187,7 +224,7 @@ def test_gate_wait_is_left_out_of_the_offered_load() -> None:
     including_wait = ledger.snapshot(
         now=now, effective_width=12, verdict="open", duty_includes_wait=True
     )
-    assert snapshot["capacity"] == 21
+    assert snapshot["capacity"] == 17
     assert including_wait["capacity"] == 24
     assert snapshot["capacity"] < including_wait["capacity"]
 
@@ -195,18 +232,17 @@ def test_gate_wait_is_left_out_of_the_offered_load() -> None:
 def test_measuring_duty_including_gate_wait_runs_away() -> None:
     """Negative control: the failing rule this section rules out.
 
-    Fifteen runs wait 100 s at the gate for a 10 s request, so their whole live
+    Fifteen runs wait 170 s at the gate for a 10 s request, so their whole live
     span is mostly queue time. Read as a duty over that span the lane looks
-    almost idle and the rule admits 200-plus workers at margin 1.25; read with
-    the wait removed, the same runs offer a load above one and the capacity
-    collapses to a handful. The two readings are the same ledger and the same
-    margin, so a test that could only ever see one of them is not testing the
-    distinction.
+    almost idle and the rule admits 270 workers at margin 1.25; read with the
+    wait removed, the same runs offer a load of one and the capacity collapses
+    to the width. The two readings are the same ledger and the same margin, so a
+    test that could only ever see one of them is not testing the distinction.
     """
     now = _NOW
     ledger = _AdmissionLedger(min_history_seconds=0.0)
     for index in range(15):
-        ledger.admit(f"q-{index}", now=now - 10.0, arrived=now - 110.0)
+        ledger.admit(f"q-{index}", now=now - 10.0, arrived=now - 180.0)
     measured = ledger.snapshot(now=now, effective_width=12, verdict="open")
     runaway = ledger.snapshot(
         now=now, effective_width=12, verdict="open", duty_includes_wait=True
@@ -220,7 +256,6 @@ def test_a_thin_record_publishes_the_gate_width_as_an_assumed_capacity() -> None
     ledger = _AdmissionLedger()
     snapshot = ledger.snapshot(now=_NOW, effective_width=16, verdict="open")
     assert snapshot["live_runs"] == 0
-    assert snapshot["unkeyed_share"] is not None or snapshot["unkeyed_share"] is None
     assert snapshot["requests_per_run"] is None
     assert snapshot["worker_slots_basis"] == "assumed"
     assert snapshot["capacity"] == 16
@@ -241,13 +276,15 @@ def test_two_live_runs_assume_the_capacity_and_keep_it_when_congested() -> None:
 
 def test_fresh_ledger_assumes_capacity_then_measures_once_history_elapses() -> None:
     start = _NOW
-    ledger = _live_ledger(start, 4, elapsed=0.0)
+    ledger = _in_service_ledger(start, 4, elapsed=0.0)
     early = ledger.snapshot(now=start + 299.0, effective_width=16, verdict="open")
     assert early["worker_slots_basis"] == "assumed"
     ready = ledger.snapshot(now=start + 300.0, effective_width=16, verdict="open")
     assert ready["worker_slots_basis"] == "measured"
     assert ready["live_runs"] == 4
-    assert ready["capacity"] == 32
+    # Four runs continuously in service offer a load of one, so the capacity is
+    # the margin times the width: floor(1.25 * 16).
+    assert ready["capacity"] == 20
 
 
 def test_ratio_averages_over_the_observed_span_not_the_full_window() -> None:
@@ -259,7 +296,7 @@ def test_ratio_averages_over_the_observed_span_not_the_full_window() -> None:
     with the busy time behind it would be reading the wrong denominator.
     """
     now = _NOW
-    ledger = _live_ledger(now, 14, elapsed=320.0)
+    ledger = _in_service_ledger(now, 14, elapsed=320.0)
     snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
     assert snapshot["window_seconds"] == 900.0
     assert snapshot["observed_seconds"] == 320.0
@@ -276,7 +313,7 @@ def test_observed_span_is_capped_at_the_window_from_above() -> None:
     of process age would publish 0.75 and overstate the slots the lane can take.
     """
     now = _NOW
-    ledger = _live_ledger(now, 14, elapsed=1200.0)
+    ledger = _in_service_ledger(now, 14, elapsed=1200.0)
     snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
     assert snapshot["observed_seconds"] == snapshot["window_seconds"] == 900.0
     assert snapshot["live_runs"] == 14
@@ -294,7 +331,7 @@ def test_requests_opened_before_the_window_contribute_only_their_in_window_time(
     be 1000 / 900 = 1.111.
     """
     now = _NOW
-    ledger = _live_ledger(now, 3, elapsed=1000.0)
+    ledger = _in_service_ledger(now, 3, elapsed=1000.0)
     snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
     assert snapshot["live_runs"] == 3
     assert snapshot["requests_per_run"] == round(3 * 900.0 / 900.0 / 3, 3)
@@ -323,12 +360,13 @@ def test_unkeyed_share_rides_beside_the_run_keyed_figures() -> None:
     """An unkeyed consumer is reported as its share of busy time, not as a run."""
     now = _NOW
     ledger = _live_ledger(now, 14)
-    unkeyed = ledger.admit(None, now=now - 300.0)
+    unkeyed = ledger.admit(None, now=now - 60.0)
     ledger.release(unkeyed, now=now)
     snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
     assert snapshot["live_runs"] == 14
-    assert snapshot["requests_per_run"] == 1.0
-    assert snapshot["unkeyed_share"] == 300.0 / (14 * 300.0 + 300.0)
+    # 262.5 keyed busy seconds per run over a 300 s observed span.
+    assert snapshot["requests_per_run"] == 0.875
+    assert snapshot["unkeyed_share"] == 60.0 / (14 * 262.5 + 60.0)
 
 
 def test_live_runs_counts_run_ids_from_the_request_header() -> None:
@@ -430,9 +468,10 @@ def test_a_malformed_margin_does_not_leave_a_silently_different_gate(tmp_path) -
 # --- The per-session fair share -------------------------------------------
 #
 # Slots are partitioned only when more than one session is working, so a session
-# working alone takes the whole global figure. These ledgers hold each run's one
-# request in service from 300 s before the snapshot, so the offered load is
-# 300 / 480 = 0.625 and the capacity at width 12 and margin 1.25 is exactly 24.
+# working alone takes the whole global figure. Each session's runs are the steady
+# two-request runs of ``_live_ledger``: a live span of 420 s carrying 262.5 s of
+# service, so the offered load is 0.625 and the capacity at width 12 and margin
+# 1.25 is exactly 24.
 _CAPACITY = 24
 
 
@@ -442,12 +481,12 @@ def _session_ledger(
     workers: dict[str | None, int],
     idle: float | None = None,
 ) -> _AdmissionLedger:
-    """A ledger holding ``workers[session]`` in-service runs admitted 300 s ago.
+    """A ledger holding ``workers[session]`` steady runs on the lane.
 
     The zero-duration filler admission 900 s before ``now`` starts the observed
     span at the full window. When ``idle`` is given, one extra run is admitted
     and released ``idle`` seconds before ``now``, so its session claims a share
-    only while that age is inside the working horizon.
+    in proportion to the time its request was inside the working horizon.
     """
     ledger = _AdmissionLedger()
     filler = ledger.admit("r-intro", session="filler", now=now - 900.0)
@@ -455,7 +494,10 @@ def _session_ledger(
     index = 0
     for session, count in workers.items():
         for _ in range(count):
-            ledger.admit(f"r{index}", session=session, now=now - 300.0)
+            first = ledger.admit(f"r{index}", session=session, now=now - 300.0)
+            ledger.release(first, now=now - 90.0)
+            second = ledger.admit(f"r{index}", session=session, now=now - 60.0)
+            ledger.release(second, now=now - 7.5)
             index += 1
     if idle is not None:
         released = ledger.admit("idle-0", session="idle", now=now - idle)
