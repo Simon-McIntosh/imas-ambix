@@ -34,7 +34,6 @@ therefore attributes every such second to no slots offered.
 from __future__ import annotations
 
 import math
-import statistics
 from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
@@ -201,10 +200,14 @@ def offered_load(
     the lane sets it; the simulation's negative control is its only caller, and
     it exists so that control exercises this code rather than a copy of it.
 
-    The figure is the median over the live runs, not the sum over the lane: one
-    run coming back from a long think -- a span with almost no service in it
-    yet -- would halve a summed load and double the capacity sized from it,
-    while a typical run's own duty is what the capacity is meant to follow.
+    The figure is the mean over the live runs, each run one vote: a run's own
+    duty is the load one live run offers, and averaging it over the lane is what
+    keeps the estimate the section asks for. Weighting the average by span
+    instead would let the longest-lived run set it -- a pooled ratio moves as a
+    cohort ages, which is a change in who has been alive longest, not in the
+    load the lane's runs offer. A median would give each run one vote too, but a
+    few dozen runs make a noisy median when the think times are as heavy-tailed
+    as these are, and the rule would size a dispatch from that noise.
 
     ``None`` when no keyed run offers a live span at all: a lane whose runs are
     all unkeyed cannot state the load, and a zero would divide.
@@ -217,17 +220,16 @@ def offered_load(
             continue
         service[run] = service.get(run, 0.0) + interval.service_seconds
         waited[run] = waited.get(run, 0.0) + interval.gate_wait_seconds
-    spans = _observed_spans(intervals)
-    loads: list[float] = []
-    for run, (start, end) in spans.items():
+    duties: list[float] = []
+    for run, (start, end) in _observed_spans(intervals).items():
         live = end - start
         available = live if include_gate_wait else live - waited[run]
-        if available <= 0 or service[run] <= 0:
+        if available <= 0:
             continue
-        loads.append(service[run] / available)
-    if not loads:
+        duties.append(service[run] / available)
+    if not duties:
         return None
-    return statistics.median(loads)
+    return sum(duties) / len(duties)
 
 
 def capacity_from_offered_load(
