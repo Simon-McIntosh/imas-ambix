@@ -587,6 +587,42 @@ def test_lane_block_copies_the_published_capacity_figures():
         assert key not in bare
 
 
+def test_lane_block_copies_the_window_utilisation_whole():
+    """The router's utilisation block reaches the view intact.
+
+    The window figures a serve row draws are cut from the same request record
+    as the admission counts, so the router publishes them inside the admission
+    block. The serve row reads them from here, and a copy that dropped the
+    block would leave every window column a dash over a lane that published
+    one. The block is copied whole rather than field by field: it is one
+    gate's own record, and the router owns which fields it carries.
+    """
+    window = {
+        "seconds": 900.0,
+        "mean_in_service": 11.1,
+        "share_at_width": 0.74,
+        "median_gate_wait_seconds": 2.5,
+        "delivered_tokens_per_second": 558.0,
+        "plateau_tokens_per_second": 700.0,
+    }
+    document = {
+        "observed_at": _stamp(0.0),
+        "state": "measured",
+        "admission": {"verdict": "open", "utilisation": {"window": window}},
+    }
+    block = lane_block(document, now=BASE)
+    assert block["admission"]["utilisation"] == {"window": window}
+    # A lane that published no block has none to copy, and the key is absent:
+    # an absent block and a block whose window measured nothing are different
+    # facts, and a reader has to be able to tell them apart.
+    bare = lane_block(
+        {"observed_at": _stamp(0.0), "state": "measured",
+         "admission": {"verdict": "open"}},
+        now=BASE,
+    )
+    assert "utilisation" not in bare["admission"]
+
+
 def test_lane_block_copies_a_published_availability_unchanged():
     document = {
         "observed_at": _stamp(0.0),

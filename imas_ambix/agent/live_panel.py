@@ -675,6 +675,13 @@ def lane_block(
     admission = document.get("admission")
     if isinstance(admission, dict):
         block["admission"] = {key: admission.get(key) for key in ADMISSION_FIELDS}
+        # The utilisation block is one gate's own record of its own intervals,
+        # so it is copied whole, and only when the lane published one: a lane
+        # that published no window has none to show, which is a different fact
+        # from a window that measured zero occupancy.
+        utilisation = admission.get("utilisation")
+        if isinstance(utilisation, dict):
+            block["admission"]["utilisation"] = utilisation
         slots = {
             key: admission.get(key)
             for key in (*WORKER_SLOT_FIELDS, *SESSION_SLOT_FIELDS)

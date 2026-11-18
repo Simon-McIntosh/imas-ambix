@@ -25,7 +25,7 @@ from rich.text import Text
 from imas_ambix.agent import live_panel
 from imas_ambix.agent import llm_watch as lw
 from imas_ambix.agent.request_receipts import SELF_ANSWERED_UPSTREAM
-from imas_ambix.agent.watch_style import WIDTHS
+from imas_ambix.agent.watch_style import DASH, WIDTHS
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "llm_watch"
 
@@ -90,6 +90,26 @@ def _lane(**overrides: Any) -> dict[str, Any]:
             "headroom": 4,
             "waiting": 0,
             "oldest_wait_seconds": 22.0,
+            "utilisation": {
+                "width": 12,
+                "margin": 1.25,
+                "window": {
+                    "seconds": 900.0,
+                    "mean_in_service": 11.3,
+                    "share_at_width": 0.682,
+                    "median_gate_wait_seconds": 2.5,
+                    "delivered_tokens_per_second": 558.0,
+                    "plateau_tokens_per_second": 700.0,
+                },
+                "last_hour": {
+                    "seconds": 3600.0,
+                    "mean_in_service": 9.8,
+                    "share_at_width": 0.51,
+                    "median_gate_wait_seconds": 4.0,
+                    "delivered_tokens_per_second": 470.0,
+                    "plateau_tokens_per_second": 700.0,
+                },
+            },
         },
         "router_generation_gate": {
             "width": 12,
@@ -531,6 +551,65 @@ def test_a_full_gate_and_a_queue_as_deep_as_the_gate_are_both_green() -> None:
     assert "31" in colour(gate(2, 0), "2/12")
 
 
+def _row_and_groups(text: str, figure: str) -> tuple[list[str], list[str]]:
+    """The serve band's figure row and the reading each column is labelled by.
+
+    The band's group row sits directly above its label row, so the column a
+    figure stands in and the reading it is labelled with are recoverable from
+    the text alone -- which is what a reader sees, and what a test can hold to.
+    The label row itself is not split into columns here: a label such as
+    ``median s`` is two words, so word positions are not column positions.
+    """
+    lines = text.splitlines()
+    index = next(i for i, line in enumerate(lines) if figure in line)
+    return _cells(lines[index]), _cells(lines[index - 2])
+
+
+def test_the_lane_row_shows_the_window_beside_the_instant() -> None:
+    """An instant count below the width no longer reads as an idle lane.
+
+    The document fed here is the one the done-when names: seven requests in
+    service now against a width of twelve, a window mean of 11.1, a median
+    gate wait of 2.5 s and nothing waiting now. All four values appear on the
+    row, and each column is labelled as the instant or the window figure.
+    """
+    document = one_engine_fixture()
+    document["lane"]["router_generation_gate"].update(
+        {"in_flight": 7, "waiting": 0}
+    )
+    document["lane"]["admission"]["utilisation"]["window"].update(
+        {"mean_in_service": 11.1, "median_gate_wait_seconds": 2.5}
+    )
+
+    values, groups = _row_and_groups(render(document), "7/12")
+
+    assert values[:6] == ["7/12", "11.1", "0", "2.5", "558", "80"]
+    assert groups[:6] == [
+        "instant", "window", "instant", "window", "instant", "window",
+    ]
+
+
+def test_a_lane_without_a_window_draws_dashes_and_says_so() -> None:
+    """The negative control: no window is unavailable, never an empty one.
+
+    A lane document that published no utilisation block cannot support a
+    window and says so on its own line. The instant figures are unaffected,
+    and the window columns carry a dash rather than a zero, which would read
+    as a window that measured nothing in service.
+    """
+    document = one_engine_fixture()
+    del document["lane"]["admission"]["utilisation"]
+
+    text = render(document)
+    values, groups = _row_and_groups(text, "12/12")
+
+    assert "window unavailable" in text
+    assert values[:6] == ["12/12", DASH, "23", DASH, "558", DASH]
+    assert groups[:6] == [
+        "instant", "window", "instant", "window", "instant", "window",
+    ]
+
+
 def test_a_published_lane_document_fills_the_memory_band() -> None:
     """The capacity figures reach the band through the lane block.
 
@@ -733,11 +812,21 @@ def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
 
 
 def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
+    """Each instant figure is drawn beside the window figure it is read with.
+
+    The group row above the labels says which of the two a column is, so an
+    instant below the width is not read as an idle lane when the window was
+    full.
+    """
     lines = render(one_engine_fixture()).splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("live"))
     assert lines[at].split()[1:] == [
-        "in", "use", "gate", "wait", "held",
-        "tok/s", "/stream", "prefill/s", "ttft", "s",
+        "in", "use", "mean", "waiting", "median", "s", "tok/s",
+        "deliv", "%", "held", "/stream", "prefill/s", "ttft", "s",
+    ]
+    assert lines[at - 1].split() == [
+        "instant", "window", "instant", "window", "instant", "window",
+        "instant", "instant", "instant", "instant",
     ]
 
 
@@ -756,7 +845,9 @@ def test_in_use_is_requests_generating_and_never_the_queue() -> None:
     lines = render(document).splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("live"))
     assert lines[at + 1].split()[0] == "16/16"
-    assert lines[at + 1].split()[1] == "85"
+    # The count waiting now stands two columns on from the in-use figure: the
+    # window mean sits between them.
+    assert lines[at + 1].split()[2] == "85"
     assert "-85" not in "\n".join(lines)
 
 
@@ -764,8 +855,11 @@ def test_requests_the_engine_holds_are_a_column_beside_the_queue() -> None:
     def queued(document: dict[str, Any]) -> str:
         lines = render(document).splitlines()
         at = next(i for i, line in enumerate(lines) if line.startswith("live"))
-        assert lines[at].split()[5] == "held"
-        return lines[at + 1].split()[2]
+        # ``held`` is the seventh column of the row, and the label row's word
+        # positions are not column positions: a label such as ``median s`` is
+        # two words, so the column is named by its position here.
+        assert "held" in lines[at].split()
+        return lines[at + 1].split()[6]
 
     document = one_engine_fixture()
     document["live"]["engine_queue"] = 0.0
@@ -834,17 +928,20 @@ def test_three_project_fixture_has_no_fold_row() -> None:
 def test_unavailable_live_entry_renders_one_line_and_no_figures() -> None:
     """A missing receipt file is a stated reason, never a row of zeros.
 
-    The rates are dashes under a line naming the reason, never zeroed: a zero
-    is a measurement, and this document makes none. The requests in use are
-    the lane document's and still stand.
+    The receipt-only figures are dashes under a line naming the reason, never
+    zeroed: a zero is a measurement, and this document makes none. The
+    requests in use and the window figures are the lane document's and still
+    stand, which is the paired row doing its work: a dead receipt file no
+    longer blinds the reader to what the gate carried over its window.
     """
     text = render(unavailable_live_fixture())
     assert "live entry unavailable" in text
     assert "no raw receipt file with a readable row" in text
     lines = text.splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("live"))
-    assert lines[at + 1].split()[3:7] == ["—", "—", "—", "—"]
-    assert "11.3" not in text
+    values = lines[at + 1].split()
+    assert values[3:6] == ["2.5", DASH, "80"]
+    assert values[6:] == [DASH, DASH, DASH, DASH]
 
 
 def test_an_account_holding_nothing_renders_one_line() -> None:
