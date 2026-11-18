@@ -1,0 +1,107 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1035 (_GenerationGate.admission_document -> _AdmissionLedger.snapshot with waiting_runs)",
+    "imas_ambix/agent/lane_sim.py:395 (LaneSim.publish_slots -> snapshot with margin and duty_includes_wait)",
+    "imas_ambix/agent/lane_utilisation.py:529 (utilisation_block -> capacity_from_offered_load)",
+    "imas_ambix/agent/lane.py:1242 (_merge_admission publishes capacity and margin)",
+    "imas_ambix/agent/live_panel.py:680 (lane_block copies capacity and margin into the worker_slots block)"
+  ],
+  "completed_at": "2026-11-18T21:59:08.609Z",
+  "dispatched_at": "2026-11-18T21:58:55Z",
+  "evidence_limits": "The reviewed manifest carries neither baseline_suite nor after_suite; its test_logs names gate.log, which records 147 passed and EXIT=0 with no failing test id, so added_failure_count is 0 and added_failure_ids is empty. sim.log in the same run directory records one failure of test_the_rule_delivers_the_plateau_at_margin_1_25[starved] at 20:08, before the default margin moved to 1.5; it is not a recorded arm and the test it names does not exist at the head.",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/llp-worker-slots-follow-offered-load.html",
+      "line": "5",
+      "severity": "blocking",
+      "text": "blocking: the landing fragment states offered_load is the median of the live runs' duties, while the landed code averages them (imas_ambix/agent/lane_utilisation.py:228) and s4.html records the median as the estimator that was replaced because it ramped; the node's own evidence therefore describes the opposite of the shipped rule."
+    },
+    {
+      "file": "imas_ambix/agent/lane_utilisation.py",
+      "line": "157",
+      "severity": "non-blocking",
+      "text": "non-blocking: _observed_spans re-implements the run-keyed first/last span aggregation owned by _live_spans at line 127, differing only in using arrived instead of admitted and in omitting the horizon extension, so the two loops can drift apart."
+    },
+    {
+      "file": "tests/test_agent_lane_sim.py",
+      "line": "141",
+      "severity": "non-blocking",
+      "text": "non-blocking: `assert published == snapshot[\"worker_slots\"]` compares publish_slots() against a direct snapshot() call with the same arguments, so both sides move together and the assertion holds whatever worker_slots computes; it guards only that publish_slots forwards the queue, not the slot rule."
+    },
+    {
+      "file": "tests/test_agent_router_worker_slots.py",
+      "line": "200",
+      "severity": "non-blocking",
+      "text": "non-blocking: `assert snapshot[\"margin\"] == margin` compares the published field against the value the test itself passed in, so it cannot fail on a wrong margin; the capacity assertion at line 201 is the independent one."
+    },
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": "327",
+      "severity": "non-blocking",
+      "text": "non-blocking: the commit rewraps line-joining formatting in receipt_serves, live_block, panel_engines, _match_on_host, _engine_host, _engine_entry, _lane_document, _document_engines and published_shelf_life without changing behaviour, which enlarges the diff and obscures the one substantive panel change (WORKER_SLOT_FIELDS)."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "commit by commit over the 10 commits: be90594 lands the rule, 9ae8181/2c15238 repair the fixtures and the estimator; ce52847/eadc6f9/d239590 record the measurements; 97809f6 moves the default margin to 1.5; 1cbbfdf/71d1272a record it, and every file is inside the declared scope, though live_panel.py and lane.py also carry formatting-only rewraps of functions the goal does not touch.",
+    "done_when": "the ledger clause (fifteen live runs, capacity within one of the hand figure, slots = capacity - live) is asserted at tests/test_agent_router_worker_slots.py:103, the six stability configurations at tests/test_agent_lane_sim.py:205, the default-margin delivery at :228 and the including-wait negative control at :246, and the run's gate.log records 147 passed with EXIT=0.",
+    "goal": "the goal is to size the published worker slots from the load live runs offer without gate wait; imas_ambix/agent/router.py:1035 publishes live_runs, margin, capacity and worker_slots from one `_AdmissionLedger` record, and imas_ambix/agent/lane_utilisation.py:181 removes each live run's gate wait from the span its duty is measured over.",
+    "manifest": "read; it records the 10 commits, the gate command and gate.log, the unit and simulation negative-control tests, and status complete.",
+    "write_paths": "the node declared imas_ambix/agent, tests, docs/evidence/fragments/the-local-lane-delivers-its-plateau and a figures directory; all 10 paths in d1c9b901..71d1272a sit inside them."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_router_worker_slots.py:103 reddens if the capacity stops being the margin times the width over the observed load, and tests/test_agent_lane_sim.py:246 reddens if include_gate_wait stops being honoured, though tests/test_agent_lane_sim.py:141 compares two calls into the same function and cannot fail on a slot-arithmetic regression.",
+    "evidence": "every done_when figure is asserted by the named tests and the run's gate.log records 147 passed with EXIT=0 at the command the manifest names, with only the two docs-only commits after that run.",
+    "fit": "the new fields follow the surrounding docstring-and-comment idiom at imas_ambix/agent/router.py:491-535 and introduce no name the project's naming rules forbid.",
+    "goal_fidelity": "imas_ambix/agent/router.py:631 sets capacity from capacity_from_offered_load at :609 and worker_slots = capacity - live_runs at :632, and router.py:602 publishes the margin as a setting of the gate's control file defaulting to DEFAULT_MARGIN.",
+    "reuse": "imas_ambix/agent/lane_utilisation.py:157 adds a per-run span aggregation beside the one the module already owns at line 127 instead of extending it, so the same first/last aggregation exists twice.",
+    "scope_discipline": "all 10 changed paths are inside the declared write paths, but imas_ambix/agent/live_panel.py:327 and imas_ambix/agent/lane.py:1388 rewrap untouched code for no functional reason the goal implies."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is to size the published worker slots from the load live runs offer without gate wait; imas_ambix/agent/router.py:1035 publishes live_runs, margin, capacity and worker_slots from one `_AdmissionLedger` record, and imas_ambix/agent/lane_utilisation.py:181 removes each live run's gate wait from the span its duty is measured over.\nVERDICT done_when: the ledger clause (fifteen live runs, capacity within one of the hand figure, slots = capacity - live) is asserted at tests/test_agent_router_worker_slots.py:103, the six stability configurations at tests/test_agent_lane_sim.py:205, the default-margin delivery at :228 and the including-wait negative control at :246, and the run's gate.log records 147 passed with EXIT=0.\nVERDICT write_paths: the node declared imas_ambix/agent, tests, docs/evidence/fragments/the-local-lane-delivers-its-plateau and a figures directory; all 10 paths in d1c9b901..71d1272a sit inside them.\nVERDICT manifest: read; it records the 10 commits, the gate command and gate.log, the unit and simulation negative-control tests, and status complete.\nVERDICT diff: commit by commit over the 10 commits: be90594 lands the rule, 9ae8181/2c15238 repair the fixtures and the estimator; ce52847/eadc6f9/d239590 record the measurements; 97809f6 moves the default margin to 1.5; 1cbbfdf/71d1272a record it, and every file is inside the declared scope, though live_panel.py and lane.py also carry formatting-only rewraps of functions the goal does not touch.\nCALL_SITES: imas_ambix/agent/router.py:1035 (_GenerationGate.admission_document -> _AdmissionLedger.snapshot with waiting_runs), imas_ambix/agent/lane_sim.py:395 (LaneSim.publish_slots -> snapshot with margin and duty_includes_wait), imas_ambix/agent/lane_utilisation.py:529 (utilisation_block -> capacity_from_offered_load), imas_ambix/agent/lane.py:1242 (_merge_admission publishes capacity and margin), imas_ambix/agent/live_panel.py:680 (lane_block copies capacity and margin into the worker_slots block)\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/router.py:631 sets capacity from capacity_from_offered_load at :609 and worker_slots = capacity - live_runs at :632, and router.py:602 publishes the margin as a setting of the gate's control file defaulting to DEFAULT_MARGIN.\nSCORE evidence: 18\nJUSTIFICATION evidence: every done_when figure is asserted by the named tests and the run's gate.log records 147 passed with EXIT=0 at the command the manifest names, with only the two docs-only commits after that run.\nSCORE scope_discipline: 16\nJUSTIFICATION scope_discipline: all 10 changed paths are inside the declared write paths, but imas_ambix/agent/live_panel.py:327 and imas_ambix/agent/lane.py:1388 rewrap untouched code for no functional reason the goal implies.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_agent_router_worker_slots.py:103 reddens if the capacity stops being the margin times the width over the observed load, and tests/test_agent_lane_sim.py:246 reddens if include_gate_wait stops being honoured, though tests/test_agent_lane_sim.py:141 compares two calls into the same function and cannot fail on a slot-arithmetic regression.\nSCORE fit: 18\nJUSTIFICATION fit: the new fields follow the surrounding docstring-and-comment idiom at imas_ambix/agent/router.py:491-535 and introduce no name the project's naming rules forbid.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/lane_utilisation.py:157 adds a per-run span aggregation beside the one the module already owns at line 127 instead of extending it, so the same first/last aggregation exists twice.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/llp-worker-slots-follow-offered-load.html:5 blocking: the landing fragment states offered_load is the median of the live runs' duties, while the landed code averages them (imas_ambix/agent/lane_utilisation.py:228) and s4.html records the median as the estimator that was replaced because it ramped; the node's own evidence therefore describes the opposite of the shipped rule.\nFINDING imas_ambix/agent/lane_utilisation.py:157 non-blocking: _observed_spans re-implements the run-keyed first/last span aggregation owned by _live_spans at line 127, differing only in using arrived instead of admitted and in omitting the horizon extension, so the two loops can drift apart.\nFINDING tests/test_agent_lane_sim.py:141 non-blocking: `assert published == snapshot[\"worker_slots\"]` compares publish_slots() against a direct snapshot() call with the same arguments, so both sides move together and the assertion holds whatever worker_slots computes; it guards only that publish_slots forwards the queue, not the slot rule.\nFINDING tests/test_agent_router_worker_slots.py:200 non-blocking: `assert snapshot[\"margin\"] == margin` compares the published field against the value the test itself passed in, so it cannot fail on a wrong margin; the capacity assertion at line 201 is the independent one.\nFINDING imas_ambix/agent/live_panel.py:327 non-blocking: the commit rewraps line-joining formatting in receipt_serves, live_block, panel_engines, _match_on_host, _engine_host, _engine_entry, _lane_document, _document_engines and published_shelf_life without changing behaviour, which enlarges the diff and obscures the one substantive panel change (WORKER_SLOT_FIELDS).",
+  "review_run_id": "r-20261118T212147363251-review-of-llp-worker-slots-follow-offered-load-71d1272a5e76",
+  "reviewed_base_sha": "d1c9b901efb96d3a7b827b2a2c5261347f9e30c7",
+  "reviewed_head_sha": "71d1272a5e76d7ef0ac7995dc00698240b515c0e",
+  "reviewed_run_id": "r-20261118T103458396546-llp-worker-slots-follow-offered-load",
+  "reviewed_worker_commits": [
+    "be90594fd7900a7936a1212cdff2cd1f81ad9a85",
+    "9ae8181cc88503715edbead60a8d44ec6335d5b0",
+    "2c152388858454caf3b8dd50c0fc2f648b224c6e",
+    "ce528471cf8b6d5f9792d7bf4880ec628599e7d6",
+    "e0a2c15c63c90c01c36494c14cf8edb10f688380",
+    "eadc6f9ed7fcb22c0c648f6d68e7d23fa1263f3d",
+    "d239590560f77ac27022f6957b16e74ba77c0801",
+    "97809f606a8dacc4e5b707bfc0681ca435e391df",
+    "1cbbfdf0ec989e1caf5d129a3b46bbbb65565c2d",
+    "71d1272a5e76d7ef0ac7995dc00698240b515c0e"
+  ],
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 5,
+    "scope_discipline": 16
+  },
+  "status": "parsed",
+  "suite_evidence": {
+    "after": {
+      "command": "cd /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/8e41a6d3-d0e0-4927-afd1-771942ebfe6a/llp-worker-slots-follow-offered-load && UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_sim.py tests/test_agent_router_worker_slots.py tests/test_agent_lane_utilisation.py tests/test_live_panel.py tests/test_lane_callers.py tests/test_agent_router_gate.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103458396546-llp-worker-slots-follow-offered-load/gate.log",
+      "revision": "97809f606a8dacc4e5b707bfc0681ca435e391df"
+    }
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T22:26:25.892674+00:00",
+  "total": 93
+}
