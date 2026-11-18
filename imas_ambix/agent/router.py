@@ -496,6 +496,7 @@ class _AdmissionLedger:
         verdict: str,
         margin: float = DEFAULT_MARGIN,
         waiting_runs: Iterable[str] = (),
+        waiting_count: int = 0,
         duty_includes_wait: bool = False,
         claim_seconds: float | None = None,
     ) -> dict[str, object]:
@@ -512,6 +513,10 @@ class _AdmissionLedger:
         ``waiting_runs`` is the gate's own queue. A request that is waiting has
         not been admitted, so the ledger holds no interval for it, and the run
         it belongs to would otherwise be invisible until its turn came.
+        ``waiting_count`` is the same claim for runs whose identity the caller
+        does not hold -- a simulation's admitted workers that have not started
+        asking yet -- and only the count can matter, because such a run holds a
+        slot and offers the load nothing to the record.
         ``duty_includes_wait`` states the failing rule the simulation's negative
         control measures itself against; the lane never sets it.
 
@@ -584,8 +589,10 @@ class _AdmissionLedger:
         # names no session here, and the sessions below are the runs holding
         # intervals, so the two never double count the same run.
         live_run_ids = live_runs_seen
-        live_runs = len(live_run_ids) + len(
-            {run for run in waiting_runs if run} - live_run_ids
+        live_runs = (
+            len(live_run_ids)
+            + len({run for run in waiting_runs if run} - live_run_ids)
+            + max(0, waiting_count)
         )
         fields: dict[str, object] = {
             "window_seconds": self._window,
@@ -603,7 +610,6 @@ class _AdmissionLedger:
             live_intervals,
             width=effective_width,
             margin=margin,
-            working_horizon=WORKING_HORIZON_SECONDS,
             include_gate_wait=duty_includes_wait,
         )
         if (

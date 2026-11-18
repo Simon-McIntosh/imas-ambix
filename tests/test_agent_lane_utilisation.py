@@ -202,9 +202,12 @@ def test_the_lane_document_publishes_the_block_and_one_mean_in_service() -> None
     """
     gate = _GenerationGate(None, default_width=WIDTH)
     now = time.monotonic()
+    # Admitted inside the working horizon, so these are the runs the slots are
+    # sized from: a run whose last admission is older than the horizon holds no
+    # slot, and a document counting it would size from a run that is gone.
     for index in range(2):
         busy = gate._admissions.admit(
-            f"r-{index}", session="s", now=now - 600.0, arrived=now - 620.0
+            f"r-{index}", session="s", now=now - 100.0, arrived=now - 120.0
         )
         gate._admissions.release(busy, now=now, completion_tokens=1000)
 

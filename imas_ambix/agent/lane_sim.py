@@ -326,6 +326,7 @@ class LaneSim:
         self.ledger = _AdmissionLedger(window_seconds=ADMISSION_WINDOW_SECONDS)
         self.open_intervals: dict[int, object] = {}
         self.slots = 0
+        self.capacity = 0
         self.waits: list[float] = []
         self.level_time: collections.Counter[int] = collections.Counter()
         self.live_time = 0.0
@@ -397,8 +398,14 @@ class LaneSim:
             verdict="open",
             margin=self.margin,
             waiting_runs={str(worker) for worker in self.gate},
+            # A worker launched and not yet asking holds a slot the record
+            # cannot show: it has no id and no request, so only its count can be
+            # claimed. Without it the rule admits that slot again on the next
+            # publication period and the pool overshoots the capacity.
+            waiting_count=len(self.launching),
             duty_includes_wait=self.duty_includes_wait,
         )
+        self.capacity = int(snapshot["capacity"] or 0)
         self.slots = int(snapshot["worker_slots"])
         return self.slots
 
@@ -432,7 +439,15 @@ class LaneSim:
                 self.publish_slots()
                 next_publish += PUBLISH_EVERY
             if self.t >= next_admit:
-                for _ in range(min(self.slots, LAUNCH_POOL, self.queue)):
+                # The dispatcher's own count is a floor on the room left: a run
+                # the record cannot see -- one thinking longer than the working
+                # horizon -- is still a worker this run holds, and admitting
+                # past the capacity it published would make that figure mean
+                # nothing. The gate's own arithmetic is untouched; this is what
+                # the consumer knows about its pool.
+                held = len(self.workers) + len(self.launching)
+                room = max(0, self.capacity - held) if self.capacity else self.slots
+                for _ in range(min(self.slots, room, LAUNCH_POOL, self.queue)):
                     self._launch()
                     self.queue -= 1
                     self.slots -= 1

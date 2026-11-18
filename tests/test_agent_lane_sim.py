@@ -128,11 +128,16 @@ def test_the_slot_count_is_the_router_ledgers_own():
     rows, calibration = _fed_calibration()
     sim = LaneSim(calibration, seed=0, hours=0.5)
     sim.run(LANE_WIDTH)
+    published = sim.publish_slots()
     snapshot = sim.ledger.snapshot(
-        now=sim.t, effective_width=LANE_WIDTH, verdict="open"
+        now=sim.t,
+        effective_width=LANE_WIDTH,
+        verdict="open",
+        waiting_runs={str(worker) for worker in sim.gate},
+        waiting_count=len(sim.launching),
     )
     assert snapshot["live_runs"] > 0
-    assert sim.publish_slots() == snapshot["worker_slots"]
+    assert published == snapshot["worker_slots"]
     assert sim.rate_at(LANE_WIDTH) == calibration.rate[LANE_WIDTH]
 
 
@@ -181,11 +186,13 @@ def _simulated_plateau(name: str) -> float:
     )
 
 
-def _rule_run(name: str, margin: float, *, seed: int = 0, **kwargs):
+def _rule_run(
+    name: str, margin: float, *, seed: int = 0, hours: float = RULE_HOURS, **kwargs
+):
     sim = LaneSim(
         _workload(name),
         seed=seed,
-        hours=RULE_HOURS,
+        hours=hours,
         margin=margin,
         **kwargs,
     )
@@ -238,9 +245,9 @@ def test_measuring_duty_including_the_gate_wait_runs_the_pool_away() -> None:
 
     Duty over the live span including the gate wait falls as the gate fills, so
     the rule reads a queueing lane as an underused one and answers with more
-    workers. At margin 1.25 the pool is past 200 by the last hour of the same
-    four-hour run, which the rule sized without the wait does not do.
+    workers. The lane is run for eight hours so the drift is measured past
+    where the rule without the wait settles.
     """
-    sim, _ = _rule_run("fed", 1.25, duty_includes_wait=True)
+    sim, _ = _rule_run("fed", 1.25, hours=RULE_HOURS * 2, duty_includes_wait=True)
     last_hour = sim.worker_ten_minute_means()[-6:]
     assert sum(last_hour) / len(last_hour) > RUNAWAY_WORKERS, last_hour
