@@ -1,0 +1,167 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_review": [
+    {
+      "conditions_for_failure": "The mean (within 0.1), share (within two points) and rate (within 2 percent) assertions redden if the code reports an instant count, divides tokens by the wrong span, or excludes gate-wait arrivals; the partition assertion at :101 reddens if the split loses or double-counts below-width seconds beyond one second per hour.",
+      "independence": "The expected values 11.10/0.682/434 and 1.66/0.003/113 are literals taken from the evidence scripts' logs, not read back from the code under test.",
+      "limit": "The test does not read occupancy-fed.log at run time, so a later drift of the document away from the evidence scripts would only be caught by whoever edits the literals.",
+      "location": "tests/test_agent_lane_utilisation.py:89-101"
+    },
+    {
+      "conditions_for_failure": "The 90 percent starved attribution fails if a starved window is attributed to no-slots-offered, and the fed-versus-starved comparison fails on a split that answers the same part to both windows.",
+      "independence": "Both sides are computed from the committed receipt excerpt through the public entry point; the threshold comes from the done_when.",
+      "limit": "Both windows come from one fixture day, so a capacity rule wrong in one direction could stay under the 0.90 threshold.",
+      "location": "tests/test_agent_lane_utilisation.py:104-130"
+    },
+    {
+      "conditions_for_failure": "The pause control reddens if the pause is dropped from the split (demonstrated: assert 600.0 == 0.0 in logs/s6-negative-control.log), the unpaused mirror reddens if the split answers no slots to everything, and :190-192 redden if the pause is read back from the latest flag instead of recorded when it happened.",
+      "independence": "The ledger is built by the test and the expected split follows from the stated rule, not from the returned block.",
+      "limit": "",
+      "location": "tests/test_agent_lane_utilisation.py:133-192"
+    },
+    {
+      "conditions_for_failure": "live_runs == 2 and approx(2.0) redden if the ledger or the sweep drops occupancy; line 215 reddens only if the router stops copying the window mean into the admission block, never if that mean is wrong.",
+      "independence": "Line 215 is not independent: both sides read the same dict entry assigned at imas_ambix/agent/router.py:967-969.",
+      "limit": "The section-4 equality clause of the done_when is checked on a synthetic ledger only.",
+      "location": "tests/test_agent_lane_utilisation.py:214-220",
+      "self_comparison": true
+    },
+    {
+      "conditions_for_failure": "The last-hour token totals redden if pruning drops to the slot window (100 instead of 700), and the withheld-capacity assertions redden if a guessed capacity is published for an unkeyed record.",
+      "independence": "Expected counts are the token figures supplied to the ledger; the assertions test retention and refusal, not a copy of a returned value.",
+      "limit": "",
+      "location": "tests/test_agent_lane_utilisation.py:240-259"
+    }
+  ],
+  "call_site_count": 7,
+  "call_sites": [
+    "imas_ambix/agent/router.py:_AdmissionLedger.utilisation",
+    "imas_ambix/agent/router.py:_GenerationGate.admission_document",
+    "imas_ambix/agent/router.py:RouterApp._gate_fields",
+    "imas_ambix/agent/router.py:RouterApp._publish_gate_snapshot",
+    "imas_ambix/agent/router.py:RouterApp._handle (gate.release with completion_tokens)",
+    "imas_ambix/agent/router.py:RouterApp._relay (accounting parameter)",
+    "imas_ambix/agent/lane.py:_merge_admission"
+  ],
+  "completed_at": "2026-11-18T12:06:30.994Z",
+  "dispatched_at": "2026-11-18T12:06:15Z",
+  "finding_dispositions": {},
+  "findings": [
+    {
+      "file": "tests/test_agent_lane_utilisation.py",
+      "line": "215",
+      "severity": "non-blocking",
+      "text": "non-blocking: the assertion compares document[\"mean_in_service\"] with utilisation[\"window\"][\"mean_in_service\"], and imas_ambix/agent/router.py:967-969 assigns the section-4 field from exactly that dict entry, so both sides move together and it stays green for any wrong mean; the independent pin is line 216's approx(2.0) on a 2-in-service ledger."
+    },
+    {
+      "file": "imas_ambix/agent/lane.py",
+      "line": "1229",
+      "severity": "non-blocking",
+      "text": "non-blocking: the two pops that keep a pool's merged admission block free of one engine's utilisation and mean have no assertion; deleting lines 1229-1230 leaves tests/test_agent_lane_utilisation.py and tests/test_lane_pool_documents.py green, so the shipped pool-merge guard has no test for its own regression."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/s6.html",
+      "line": "24",
+      "severity": "non-blocking",
+      "text": "non-blocking: the recorded format arm names only lane_utilisation.py, router.py and the new test, omitting imas_ambix/agent/lane.py, which this node also changed; measured at the reviewed head, ruff format --check reports 'Would reformat: imas_ambix/agent/lane.py', and the same drift exists at base 31a74b6e, so the omission hides pre-existing drift rather than new drift but the gate as recorded does not cover every changed path."
+    },
+    {
+      "file": "tests/test_agent_lane_utilisation.py",
+      "line": "211",
+      "severity": "non-blocking",
+      "text": "non-blocking: the done_when clause that the mean in service equals the section-4 block's figure for the same rows is asserted only on a synthetic two-request ledger (:211-216), never on the committed receipt excerpts the clause names, so the two-window agreement between the utilisation window mean and an admission block built from the replayed rows is untested."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "verified 7 production call sites",
+    "diff": "Read all four commits against base 31a74b6e (ed0814ec the feature, 31fed746 the pool-merge guard, 6c90c668 the evidence fragment, 9ddee9d the evidence correction); the cumulative diff is 971 insertions over six paths, being a 510-line lane_utilisation module, router ledger and accounting plumbing, a 6-line lane.py merge guard, a 260-line test file, a 182 KB receipt fixture and the s6 fragment.",
+    "done_when": "The done_when names the fed (04:45-06:40) and starved (02:00-04:45) windows, the three tolerances, the 90 percent starved attribution, the partition sum, the section-4 mean equality and a paused-gate negative control; tests/test_agent_lane_utilisation.py:76-152 asserts each quantitatively against the values logs in docs/evidence/fragments/the-local-lane-delivers-its-plateau/occupancy-fed.log, occupancy-starved.log and rate-by-load.log, and the recorded gate at revision 6c90c668 reports 199 passed, 1 skipped with EXIT=0.",
+    "goal": "Read the source node goal 'Publish window utilisation and the split of time below width in the lane document'; the diff adds imas_ambix/agent/lane_utilisation.py:450 utilisation_block and publishes it through imas_ambix/agent/router.py:968 as admission.utilisation, carrying the mean, share at width, delivered and plateau rates and the below-width split for the averaging window and the last hour.",
+    "manifest": "Read the source manifest; it states status complete, four full commit ids, a thirteen-file pytest gate with 199 passed and 1 skipped, three log paths, a negative_control_log that ends EXIT=1 at 'assert 600.0 == 0.0', and eight pre-existing watch-rev whole outside_scope, but it carries no baseline_suite/after_suite JSON block, so the two arms were read from logs/s6-baseline.log and logs/s6-gate.log instead.",
+    "write_paths": "The declared write paths are imas_ambix/agent, tests, docs/evidence/fragments/the-local-lane-delivers-its-plateau and its s6 file, and the figures directory; all six paths in git diff 31a74b6e..9ddee9d lie inside them."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_lane_utilisation.py:118-130 reddens on a split that answers one part to both windows and :151 was shown red under the mutated pause, but :215 compares a value with the same dict entry and the lane.py:1229 pool-merge guard has no test.",
+    "evidence": "logs/s6-gate.log records 199 passed, 1 skipped and EXIT=0 at revision 6c90c668 with the ruff arms clean, logs/s6-baseline.log records the same eight pre-existing watch-render failures at 31a74b6e, and logs/s6-negative-control.log records the mutated pause failing with EXIT=1, but the after arm excludes the watch files and no baseline/after JSON block states the pair.",
+    "fit": "imas_ambix/agent/lane_utilisation.py:57 uses the repository's frozen slotted dataclass and narrative docstring idiom as in imas_ambix/agent/request_receipts.py:180, reuses DEFAULT-style module constants, and ruff check passes at the reviewed head.",
+    "goal_fidelity": "imas_ambix/agent/lane_utilisation.py:450 publishes the mean, share at width, delivered and plateau rates and the offered/no-slots partition for both windows, and imas_ambix/agent/router.py:968 attaches the block to the admission document the lane publishes.",
+    "reuse": "imas_ambix/agent/lane_utilisation.py:94 imports request_receipts.receipt_interval rather than re-deriving intervals, and a capability search over imas_ambix/agent found no owner of the time-weighted request sweep (decode_bins.py groups engine log steps, live_panel.py differences counters, lane_callers.py tallies callers); docs/evidence/fragments/the-local-lane-delivers-its-plateau/occupancy.py holds an independent copy by design because the plan requires the two to agree.",
+    "scope_discipline": "Every path in git diff 31a74b6e..9ddee9d is inside the declared write paths, and the added admission-document mean at imas_ambix/agent/router.py:967 is required by the done_when's section-4 clause rather than incidental."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source node goal is 'Publish window utilisation and the split of time below width in the lane document'; imas_ambix/agent/lane_utilisation.py:450 adds utilisation_block and imas_ambix/agent/router.py:968 publishes it as admission.utilisation for the averaging window and the last hour.\nVERDICT done_when: The done_when names the fed and starved windows with three tolerances, the 90 percent starved attribution, the partition sum, the section-4 mean equality and a paused-gate negative control; tests/test_agent_lane_utilisation.py:76-152 asserts each against values recorded in occupancy-fed.log, occupancy-starved.log and rate-by-load.log, and logs/s6-gate.log records 199 passed, 1 skipped, EXIT=0.\nVERDICT write_paths: The declared paths are imas_ambix/agent, tests, docs/evidence/fragments/the-local-lane-delivers-its-plateau with its s6 file, and the figures directory; all six paths in git diff 31a74b6e..9ddee9d lie inside them.\nVERDICT manifest: The source manifest states status complete, four full commit ids, the thirteen-file pytest gate at 199 passed and 1 skipped, three log paths and a negative_control_log ending EXIT=1 at 'assert 600.0 == 0.0', and it carries no baseline_suite/after_suite JSON block, so the two arms were read from logs/s6-baseline.log and logs/s6-gate.log instead.\nVERDICT diff: Read all four commits against 31a74b6e commit by commit; 971 insertions over six paths, being the new 510-line lane_utilisation module, router ledger and accounting plumbing, a 6-line lane.py pool-merge guard, a 260-line test file, a 182 KB receipt fixture and the s6 evidence fragment.\nCALL_SITES: imas_ambix/agent/router.py:_AdmissionLedger.utilisation, imas_ambix/agent/router.py:_GenerationGate.admission_document, imas_ambix/agent/router.py:RouterApp._gate_fields, imas_ambix/agent/router.py:RouterApp._publish_gate_snapshot, imas_ambix/agent/router.py:RouterApp._handle, imas_ambix/agent/router.py:RouterApp._relay, imas_ambix/agent/lane.py:_merge_admission\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/lane_utilisation.py:450 publishes the mean, share at width, delivered and plateau rates and the offered/no-slots partition for both windows, and imas_ambix/agent/router.py:968 attaches it to the admission document the lane publishes.\nSCORE evidence: 16\nJUSTIFICATION evidence: logs/s6-gate.log records 199 passed, 1 skipped and EXIT=0 at revision 6c90c668 with both ruff arms clean and logs/s6-baseline.log records the same eight pre-existing failures at 31a74b6e, but the after arm excludes those files and no baseline/after JSON block states the pair.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: Every path in git diff 31a74b6e..9ddee9d lies inside the declared write paths, and the added admission-document mean at imas_ambix/agent/router.py:967 is required by the done_when's section-4 clause.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_agent_lane_utilisation.py:118-130 reddens on a split that answers one part to both windows and :151 was shown red under the mutated pause, but :215 compares a value with the same dict entry and the lane.py:1229 pool-merge guard has no test.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/lane_utilisation.py:57 uses the repository's frozen slotted dataclass and narrative docstring idiom as in imas_ambix/agent/request_receipts.py:180, and ruff check passes at the reviewed head.\nSCORE reuse: 18\nJUSTIFICATION reuse: imas_ambix/agent/lane_utilisation.py:94 imports request_receipts.receipt_interval rather than re-deriving intervals, and a capability search over imas_ambix/agent found no owner of the time-weighted sweep, while the evidence script occupancy.py holds an independent copy by design.\nFINDING tests/test_agent_lane_utilisation.py:215 non-blocking: the assertion compares document['mean_in_service'] with utilisation['window']['mean_in_service'], and imas_ambix/agent/router.py:967-969 assigns the first from exactly the second, so both sides move together and it cannot redden on a wrong mean; the independent pin is :216.\nFINDING imas_ambix/agent/lane.py:1229 non-blocking: the two pops that keep a pool's merged admission block free of one engine's utilisation and mean have no assertion, so deleting them leaves the suite green and the shipped pool-merge guard has no regression test.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/s6.html:24 non-blocking: the recorded format arm omits imas_ambix/agent/lane.py, which this node changed, and ruff format --check reports 'Would reformat' on that file at both the reviewed head and base 31a74b6e, so the gate does not cover every changed path even though the drift is pre-existing.\nFINDING tests/test_agent_lane_utilisation.py:211 non-blocking: the done_when clause that the mean in service equals the section-4 block's figure for the same rows is asserted only on a synthetic two-request ledger, never on the committed receipt excerpts the clause names.\n",
+  "review_method": "Read-only review of the recorded artefacts plus one bounded re-run: tests/test_agent_lane_utilisation.py at the reviewed head in a scratch extraction, 10 passed, EXIT=0, log logs/review-rerun-9ddee9d.log in this run directory. No mutation experiment beyond reading the worker's recorded negative control.",
+  "review_run_id": "r-20261118T115923992019-review-of-llp-the-lane-document-reports-utilisation-and-shortfall-9ddee9d28994",
+  "reviewed_base_sha": "31a74b6e1132cd5388dcb902d993069d29e9a084",
+  "reviewed_head_sha": "9ddee9d28994689958d2aa331f933af4a6be6050",
+  "reviewed_run_id": "r-20261118T103501104962-llp-the-lane-document-reports-utilisation-and-shortfall",
+  "scores": {
+    "durability": 15,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 18,
+    "scope_discipline": 18
+  },
+  "source_commits": [
+    "ed0814ecab142e125024042df7cbcebceba299c1",
+    "31fed746ab040af9a4092c2483e9bf92b32169cb",
+    "6c90c668911fe0d6d435ab424c5a7272c39dd96f",
+    "9ddee9d28994689958d2aa331f933af4a6be6050"
+  ],
+  "status": "parsed",
+  "suite_evidence": {
+    "after_suite": {
+      "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_utilisation.py tests/test_agent_router_admission.py tests/test_agent_router_gate.py tests/test_agent_router_lane_publish.py tests/test_agent_router_worker_slots.py tests/test_agent_router_service.py tests/test_agent_router_session_affinity.py tests/test_agent_router_absent_upstream.py tests/test_agent_watch_live.py tests/test_lane_pool_documents.py tests/test_lane_callers.py tests/test_agent_lane_shared_occupancy_target.py tests/test_request_receipts.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103501104962-llp-the-lane-document-reports-utilisation-and-shortfall/logs/s6-gate.log",
+      "observed_summary": "199 passed, 1 skipped in 24.49s",
+      "revision": "6c90c668911fe0d6d435ab424c5a7272c39dd96f"
+    },
+    "baseline_suite": {
+      "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_llm_watch.py tests/test_gpu_watch.py",
+      "completed": true,
+      "exit_status": 1,
+      "failure_count": 8,
+      "failure_ids": [
+        "tests/test_gpu_watch.py::test_an_idle_card_s_figure_is_red_and_a_full_memory_bar_is_green",
+        "tests/test_gpu_watch.py::test_the_cards_allocated_are_green_only_when_the_server_is_full",
+        "tests/test_llm_watch.py::test_a_full_gate_and_a_queue_as_deep_as_the_gate_are_both_green",
+        "tests/test_llm_watch.py::test_a_full_host_tier_is_not_drawn_as_an_alarm",
+        "tests/test_llm_watch.py::test_a_full_ledger_period_is_drawn_as_healthy",
+        "tests/test_llm_watch.py::test_no_checkpoints_map_renders_checkpoint_unrecorded",
+        "tests/test_llm_watch.py::test_per_worker_cell_takes_the_serve_panels_colour",
+        "tests/test_llm_watch.py::test_the_queue_band_counts_the_work_lined_up_between_live_and_memory"
+      ],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103501104962-llp-the-lane-document-reports-utilisation-and-shortfall/logs/s6-baseline.log",
+      "observed_summary": "8 failed, 71 passed in 1.82s",
+      "revision": "31a74b6e1132cd5388dcb902d993069d29e9a084"
+    },
+    "with_watch_arm": {
+      "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_utilisation.py tests/test_agent_router_admission.py tests/test_agent_router_gate.py tests/test_agent_router_lane_publish.py tests/test_agent_router_worker_slots.py tests/test_agent_router_service.py tests/test_agent_router_session_affinity.py tests/test_agent_router_absent_upstream.py tests/test_agent_watch_live.py tests/test_lane_pool_documents.py tests/test_lane_callers.py tests/test_agent_lane_shared_occupancy_target.py tests/test_request_receipts.py tests/test_live_panel.py tests/test_llm_watch.py tests/test_gpu_watch.py",
+      "completed": true,
+      "exit_status": 1,
+      "failure_count": 8,
+      "failure_ids": [
+        "tests/test_gpu_watch.py::test_an_idle_card_s_figure_is_red_and_a_full_memory_bar_is_green",
+        "tests/test_gpu_watch.py::test_the_cards_allocated_are_green_only_when_the_server_is_full",
+        "tests/test_llm_watch.py::test_a_full_gate_and_a_queue_as_deep_as_the_gate_are_both_green",
+        "tests/test_llm_watch.py::test_a_full_host_tier_is_not_drawn_as_an_alarm",
+        "tests/test_llm_watch.py::test_a_full_ledger_period_is_drawn_as_healthy",
+        "tests/test_llm_watch.py::test_no_checkpoints_map_renders_checkpoint_unrecorded",
+        "tests/test_llm_watch.py::test_per_worker_cell_takes_the_serve_panels_colour",
+        "tests/test_llm_watch.py::test_the_queue_band_counts_the_work_lined_up_between_live_and_memory"
+      ],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103501104962-llp-the-lane-document-reports-utilisation-and-shortfall/logs/s6-gate-withwatch.log",
+      "observed_summary": "8 failed, 308 passed, 1 skipped in 25.40s",
+      "revision": "ed0814ecab142e125024042df7cbcebceba299c1"
+    }
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-11-18T12:33:11.990997+00:00",
+  "total": 103
+}
