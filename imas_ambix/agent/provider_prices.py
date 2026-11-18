@@ -44,6 +44,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import statistics
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -411,12 +412,14 @@ def _declares_fewer_than_eight_bits(quantization: object) -> bool:
 
 
 def _median(values: list[float]) -> float:
-    """The ordinary median, averaging the two middles of an even count."""
-    ordered = sorted(values)
-    middle = len(ordered) // 2
-    if len(ordered) % 2:
-        return ordered[middle]
-    return (ordered[middle - 1] + ordered[middle]) / 2.0
+    """The median a published rate is summarised with, or its only rate.
+
+    The standard library's estimator, which averages the two middles of an
+    even count, is the same one the window figures and the decode bins take
+    their medians with. Callers here pass at least one rate, which that
+    estimator requires.
+    """
+    return float(statistics.median(values))
 
 
 def _observations(history: object) -> list[dict]:

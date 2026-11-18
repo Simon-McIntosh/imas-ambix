@@ -34,6 +34,7 @@ therefore attributes every such second to no slots offered.
 from __future__ import annotations
 
 import math
+import statistics
 from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
@@ -422,9 +423,13 @@ def window_figures(
     # ordinarily waited at the gate. It is taken over the requests admitted in
     # the window, which is the population that actually waited at the gate --
     # requests still queued have no wait to measure yet and a request admitted
-    # earlier belongs to an earlier window.
-    waits = sorted(interval.gate_wait_seconds for interval in in_window)
-    median_wait, mean = _median(waits), sweep["mean_in_service"]
+    # earlier belongs to an earlier window. The estimator is the standard
+    # library's, the same one decode_bins takes its medians with: it averages
+    # the two middles of an even count, which is the rule this figure is named
+    # for, and restating that rule here would be a second answer to it.
+    waits = [interval.gate_wait_seconds for interval in in_window]
+    median_wait = statistics.median(waits) if waits else None
+    mean = sweep["mean_in_service"]
     share = sweep["share_at_width"]
     below = sweep["below_width_seconds"]
     return {
@@ -450,23 +455,6 @@ def window_figures(
         ),
         "plateau_tokens_per_second": None if plateau is None else round(plateau, 1),
     }
-
-
-def _median(values: Sequence[float]) -> float | None:
-    """The middle of an already-sorted sequence.
-
-    An even-length sequence has no middle element, so the median is reported
-    as the mean of the two either side of the middle, which is the estimator
-    commonly meant by a median and is stated once here rather than in each
-    caller.
-    """
-    count = len(values)
-    if count == 0:
-        return None
-    middle = count // 2
-    if count % 2:
-        return float(values[middle])
-    return (float(values[middle - 1]) + float(values[middle])) / 2.0
 
 
 def _rounded(value: object) -> float | None:

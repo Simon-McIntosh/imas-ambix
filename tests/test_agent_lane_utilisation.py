@@ -290,3 +290,30 @@ def test_the_window_reports_the_median_gate_wait_it_admitted() -> None:
     block = utilisation_block(intervals, width=WIDTH, now=now, window_seconds=900.0)
 
     assert block["window"]["median_gate_wait_seconds"] == pytest.approx(2.0)
+
+
+def test_an_even_count_of_waits_averages_the_two_middles() -> None:
+    """The median is the estimator the name means, at an even count too.
+
+    With four admitted requests the median is the mean of the two middles, not
+    either one of them and not a nearest-rank pick: 1.0 and 2.0 average to 1.5.
+    The window figures take their median from the standard library, as the
+    decode bins do, so this pins the rule a reader is promised rather than the
+    odd-count case alone, which almost every pick agrees on.
+    """
+    now = 10_000.0
+    waits = [0.0, 1.0, 2.0, 9.0]
+    intervals = [
+        RequestInterval(
+            arrived=now - 600.0 + index,
+            admitted=now - 600.0 + index + wait,
+            ended=now - 600.0 + index + wait + 1.0,
+            completion_tokens=1,
+            run_id=f"r-{index}",
+        )
+        for index, wait in enumerate(waits)
+    ]
+
+    block = utilisation_block(intervals, width=WIDTH, now=now, window_seconds=900.0)
+
+    assert block["window"]["median_gate_wait_seconds"] == pytest.approx(1.5)
