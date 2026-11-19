@@ -4092,12 +4092,59 @@ def _read_gate_document(path: Path) -> dict[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {}
+        return _gate_copy_payload(path)
     except (OSError, json.JSONDecodeError) as error:
         raise click.ClickException(f"{path} could not be read: {error}") from error
     if not isinstance(payload, dict):
         raise click.ClickException(f"{path} does not hold a JSON object")
     return payload
+
+
+def _gate_copy_path(path: Path) -> Path | None:
+    """Where the site gate file's copy is kept, or ``None`` for any other file.
+
+    The gate file sits in a group-writable directory beside the data it
+    governs, so a removal aimed at that data takes the operator's setting with
+    it and the router falls back to its default. The copy lives under the
+    operator's own state directory, which nothing that cleans shared storage
+    reaches. Only the site's own control file is copied: a gate file named on
+    the command line or by the environment is a caller's own experiment and
+    leaves no trace outside the path it named.
+    """
+    from imas_ambix.agent.profile import _default_gate_control_path
+
+    site_path = Path(_default_gate_control_path(SiteConfig.from_env().base_dir))
+    if path.resolve() != site_path.resolve():
+        return None
+    state_home = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local/state")
+    return Path(state_home) / "ambix" / "control" / path.name
+
+
+def _gate_copy_payload(path: Path) -> dict[str, object]:
+    """The last written settings of a gate file that is now missing.
+
+    A missing site gate file with a copy is a lost file, not a gate nobody ever
+    set, so the next write starts from the copy and restores the wait bound and
+    the pause beside whatever key it changes. The stamp is dropped because the
+    write that follows stamps itself.
+    """
+    import json
+
+    copy = _gate_copy_path(path)
+    if copy is None:
+        return {}
+    try:
+        payload = json.loads(copy.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    console.print(
+        f"{path} is missing; starting from its copy at {copy}",
+        markup=False,
+        highlight=False,
+    )
+    return {k: v for k, v in payload.items() if k not in ("set_by", "set_at")}
 
 
 def _write_gate_document(path: Path, payload: dict[str, object]) -> None:
@@ -4116,8 +4163,22 @@ def _write_gate_document(path: Path, payload: dict[str, object]) -> None:
     payload["set_at"] = datetime.now(UTC).isoformat()
     path.parent.mkdir(parents=True, exist_ok=True)
     scratch = path.with_suffix(".tmp")
-    scratch.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    text = json.dumps(payload, indent=2, sort_keys=True)
+    scratch.write_text(text, encoding="utf-8")
     scratch.replace(path)
+    copy = _gate_copy_path(path)
+    if copy is not None:
+        # The copy is what a later write restores from; failing to take it
+        # must not undo a gate change the router has already read.
+        try:
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            copy.write_text(text, encoding="utf-8")
+        except OSError as error:
+            console.print(
+                f"gate copy not written to {copy}: {error}",
+                markup=False,
+                highlight=False,
+            )
 
 
 def _pause_gate(
