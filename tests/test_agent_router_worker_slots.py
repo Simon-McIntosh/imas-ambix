@@ -16,6 +16,7 @@ import asyncio
 import math
 from typing import Any
 
+from imas_ambix.agent.lane_sim import per_session_reserve_offers
 from imas_ambix.agent.request_receipts import (
     COORDINATOR_SESSION_HEADER,
     RUN_ID_HEADER,
@@ -521,11 +522,11 @@ def test_two_working_sessions_divide_the_capacity_and_borrow_around_it() -> None
     """With two sessions the fair share is floor(24 / 2) = 12.
 
     Session A holds 3 workers and B holds 5, so the global figure is
-    24 - 8 = 16. The global figure less the two slots held back for the other
-    session's growth offers each of them 14. A new session is computed as a
-    third with no workers of its own, so its share is floor(24 / 3) = 8, and the
-    global figure less the four slots reserved for the two sessions short of
-    their share offers it 12.
+    24 - 8 = 16. The global figure less the one borrow reserve the lane holds
+    offers each of them 14. A new session is computed as a third with no
+    workers of its own, so its share is floor(24 / 3), and the global figure
+    less that one reserve offers it 14 -- not the 12 a reserve held for each
+    session short of its share would have counted.
     """
     ledger = _session_ledger(_NOW, workers={"A": 3, "B": 5})
     snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
@@ -535,7 +536,7 @@ def test_two_working_sessions_divide_the_capacity_and_borrow_around_it() -> None
     assert snapshot["borrow_reserve"] == 2
     assert snapshot["sessions"]["A"] == {"live_runs": 3, "worker_slots": 14}
     assert snapshot["sessions"]["B"] == {"live_runs": 5, "worker_slots": 14}
-    assert snapshot["new_session_worker_slots"] == 12
+    assert snapshot["new_session_worker_slots"] == 14
 
 
 def test_session_idle_past_the_horizon_stops_claiming_a_share() -> None:
@@ -647,3 +648,68 @@ def test_session_share_is_keyed_from_the_caller_declared_headers() -> None:
         assert snapshot["active_sessions"] == 1
 
     asyncio.run(exercise())
+
+
+def test_a_session_with_the_work_is_offered_the_slots_idle_sessions_leave() -> None:
+    """Five sessions, 11 live runs and 5 free slots: the busy session gets 3.
+
+    At capacity 16 the fair share is floor(16 / 5) = 3. Four of the five
+    sessions are below the share, and the lane holds one reserve of 2 for them
+    in total, so the session already past its share is offered the 3 slots left
+    beyond that reserve rather than the 0 a reserve per session left it. Each
+    session below its share is still offered its room to grow to its share: B,
+    D and E hold 1 run and need 2 more, C holds 2 and needs 1.
+
+    The capacity is 16 at width 8 because the steady runs offer the load 0.75
+    the default margin sizes against: floor(1.5 * 8 / 0.75) = 16.
+    """
+
+    ledger = _session_ledger(
+        _NOW, workers={"A": 6, "B": 1, "C": 2, "D": 1, "E": 1}
+    )
+    document = ledger.snapshot(now=_NOW, effective_width=8, verdict="open")
+
+    assert document["capacity"] == 16
+    assert document["live_runs"] == 11
+    assert document["worker_slots"] == 5
+    assert document["active_sessions"] == 5
+    assert document["fair_share"] == 3
+    assert document["sessions"]["A"]["live_runs"] == 6
+
+    offered = {
+        name: entry["worker_slots"] for name, entry in document["sessions"].items()
+    }
+    assert offered == {"A": 3, "B": 3, "C": 3, "D": 3, "E": 3}, offered
+    # B, D and E need 2 runs to reach the share and C needs 1; each is offered
+    # 3, so the reserve holds none of them below its room.
+    for name, runs in (("B", 1), ("C", 2), ("D", 1), ("E", 1)):
+        assert offered[name] >= 3 - runs, (name, offered)
+
+
+def test_a_reserve_per_session_leaving_nothing_for_the_queued_session() -> None:
+    """Negative control: the reserve held once per session starves the work.
+
+    The same document under the rule the lane ran, which held
+    ``BORROW_RESERVE`` slots for each session below its share: B, D and E each
+    reserve 2 and C reserves 1, 7 slots against the 5 that are free, so the
+    session holding the 6 runs is offered nothing. The two rules read the same
+    document's capacity, share and live runs, so a check that could only ever
+    see one offer is not measuring the reserve.
+    """
+    ledger = _session_ledger(
+        _NOW, workers={"A": 6, "B": 1, "C": 2, "D": 1, "E": 1}
+    )
+    document = ledger.snapshot(now=_NOW, effective_width=8, verdict="open")
+    assert document["fair_share"] == 3
+    assert document["worker_slots"] == 5
+
+    per_session = per_session_reserve_offers(document)
+    # Hand arithmetic on the same runs: B and D and E reserve min(3-1, 2) = 2
+    # each and C reserves min(3-2, 2) = 1.
+    assert 3 * 2 + 1 == 7
+    assert document["worker_slots"] < 3 * 2 + 1
+    assert per_session["A"] == 0
+    # The lane's own rule offers what the reserves took: the offer is not an
+    # artefact of having been passed a different document.
+    assert document["sessions"]["A"]["worker_slots"] >= 3
+    assert per_session["A"] < document["sessions"]["A"]["worker_slots"]
