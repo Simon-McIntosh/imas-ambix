@@ -341,15 +341,25 @@ def head_line(document: dict[str, Any]) -> str:
 # ── the lane's bands ──────────────────────────────────────────────────
 
 
-def _band(name: str, labels: list[str], values: list[str]) -> Table:
+def _band(
+    name: str, labels: list[str], values: list[str],
+    groups: list[str] | None = None,
+) -> Table:
     """One named band: a row of labels over a row of figures.
 
     The name stands in a short column at the left, which keeps the first
     figure clear of the margin. A band's figure columns are its own: the live
     row carries one figure more than the memory row, and each is spread over
     the page's whole width.
+
+    ``groups`` labels each column's figure as one of a band's readings: a serve
+    band draws an instant figure beside the window beside it, and the reader
+    has to know which of the two a column is without the label row repeating
+    the word on every column.
     """
     table = flex_table((BAND_NAME_WIDTH,), len(labels))
+    if groups is not None:
+        table.add_row("", *[f"[dim]{group}[/]" for group in groups])
     table.add_row(f"[bold]{name}[/]", *[f"[dim]{label}[/]" for label in labels])
     table.add_row("", *values)
     return table
@@ -376,27 +386,57 @@ def backlog_count(value: float | None, width: float | None = None) -> str:
     return f"[{ramp(100.0 * value / width, 100.0, 50.0)}]{value:.0f}[/]"
 
 
-def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
+def utilisation_window(lane: dict[str, Any]) -> dict[str, Any] | None:
+    """The lane document's window utilisation block, or None when it has none.
+
+    The router publishes it under the admission block, because the figures are
+    cut from the same request record the admission counts come from. A lane
+    that has published no block -- an older router, or a pool whose engines
+    each keep their own window -- has no window to show, which is a different
+    fact from a window that measured zero occupancy.
+    """
+    admission = lane.get("admission")
+    if not isinstance(admission, dict):
+        return None
+    utilisation = admission.get("utilisation")
+    if not isinstance(utilisation, dict):
+        return None
+    window = utilisation.get("window")
+    return window if isinstance(window, dict) else None
+
+
+def serving_band(
+    lane: dict[str, Any], live: dict[str, Any], *,
+    width: int = DEFAULT_WIDTH,
+) -> Table:
     """The lane's one row of live figures: its use, its queues and its rates.
 
-    ``in use`` is the requests generating now over the gate's width in force:
-    what the lane is carrying, never below zero and never above the width. It
-    is coloured as a utilisation, green when the gate is full. ``gate wait``
-    is the requests the gate is holding back, which have reached no card.
-    They come from workers already running and wait seconds, so the figure
-    says how hard the gate is pressed and not how much work is lined up: that
-    is the queue band. It is green once at least a gate's width of requests
-    wait. ``held`` is the requests the gate admitted
-    that the engine has not scheduled, which is zero in ordinary running and
-    the first sign the engine, and not the gate, is the limit. The lane
-    document's ``headroom`` is drawn nowhere, because it subtracts the queue
-    from the room and so goes negative whenever requests wait. ``tok/s`` is
-    every stream together, ``/stream`` is what one request sees,
-    ``prefill/s`` is prompt tokens read per second and ``ttft s`` the median
-    time to a first token. A figure the receipt record did not measure is a
-    dash.
+    Every instant figure is drawn beside the window figure it is read against,
+    because an instant alone cannot answer what a lane reader asks of it.
+    ``in use`` is the requests generating now over the gate's width in force,
+    coloured as a utilisation, green when the gate is full; ``mean`` beside it
+    is the mean number of requests in service over the window, so an instant
+    below the width is not read as an idle lane when the window was full.
+    ``waiting`` is the requests the gate is holding back now, green once at
+    least a gate's width of them wait; ``median s`` beside it is the median
+    gate wait over the window, which is the wait a caller ordinarily saw
+    rather than the count at one instant. ``deliv %`` beside ``tok/s`` is the
+    window's delivered completion-token rate as a share of the window's own
+    plateau estimate. ``held`` is the requests the gate admitted that the
+    engine has not scheduled, which is zero in ordinary running and the first
+    sign the engine, and not the gate, is the limit. The lane document's
+    ``headroom`` is drawn nowhere, because it subtracts the queue from the
+    room and so goes negative whenever requests wait. ``/stream`` is what one
+    request sees, ``prefill/s`` is prompt tokens read per second and ``ttft s``
+    the median time to a first token. A figure its source did not measure is a
+    dash, never a zero.
+
+    A narrow page keeps the two occupancy figures, the two wait figures and
+    the two rates, which is what this row exists to show, and leaves ``held``
+    and the receipt-only figures to the bands below.
     """
     gate = lane.get("router_generation_gate") or {}
+    window = utilisation_window(lane)
     slots = _number(gate, "effective_width")
     in_flight = _number(gate, "in_flight")
     in_use = (
@@ -405,28 +445,74 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
         + (f"{slots:.0f}" if slots is not None else DASH)
     )
     share = 100.0 * in_flight / slots if in_flight is not None and slots else None
+    mean = _number(window, "mean_in_service")
+    mean_share = 100.0 * mean / slots if mean is not None and slots else None
+    median_wait = _number(window, "median_gate_wait_seconds")
+    delivered = _number(window, "delivered_tokens_per_second")
+    plateau = _number(window, "plateau_tokens_per_second")
+    of_plateau = (
+        100.0 * delivered / plateau if delivered is not None and plateau else None
+    )
     measured = live.get("state") == "measured"
     aggregate = _number(live, "generation_toks_per_s")
     per_stream = _number(live, "per_stream_toks_per_s")
     prefill = _number(live, "prefill_toks_per_s")
     ttft = _number(live, "median_time_to_first_token_s")
+    columns = [
+        (
+            "in use", "instant",
+            f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
+            else f"[bold]{in_use}[/]",
+        ),
+        (
+            "mean", "window",
+            f"[bold {ramp(mean_share, 80.0, 40.0)}]{mean:.1f}[/]"
+            if mean is not None else DASH,
+        ),
+        (
+            "waiting", "instant",
+            backlog_count(_number(gate, "waiting"), slots),
+        ),
+        (
+            "median s", "window",
+            f"{median_wait:.1f}" if median_wait is not None else DASH,
+        ),
+        (
+            "tok/s", "instant",
+            f"[bold]{fmt_rate(aggregate)}[/]" if measured and aggregate else DASH,
+        ),
+        (
+            "deliv %", "window",
+            f"[{ramp(of_plateau, 85.0, 60.0)}]{of_plateau:.0f}[/]"
+            if of_plateau is not None else DASH,
+        ),
+        (
+            "held", "instant",
+            alarm_count(_number(live, "engine_queue")),
+        ),
+        (
+            "/stream", "instant",
+            f"[bold {ramp(100.0 * per_stream / PER_WORKER_REF, 60.0, 30.0)}]"
+            f"{per_stream:.1f}[/]"
+            if measured and per_stream else DASH,
+        ),
+        (
+            "prefill/s", "instant",
+            f"[bold]{fmt_rate(prefill)}[/]"
+            if measured and prefill is not None else DASH,
+        ),
+        (
+            "ttft s", "instant",
+            f"{ttft:.1f}" if measured and ttft is not None else DASH,
+        ),
+    ]
+    if width < DEFAULT_WIDTH:
+        columns = columns[:6]
     return _band(
         "live",
-        ["in use", "gate wait", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
-        [
-            (f"[bold {ramp(share, 80.0, 40.0)}]{in_use}[/]" if share is not None
-             else f"[bold]{in_use}[/]"),
-            backlog_count(_number(gate, "waiting"), slots),
-            alarm_count(_number(live, "engine_queue")),
-            (f"[bold]{fmt_rate(aggregate)}[/]" if measured and aggregate
-             else DASH),
-            (f"[bold {ramp(100.0 * per_stream / PER_WORKER_REF, 60.0, 30.0)}]"
-             f"{per_stream:.1f}[/]"
-             if measured and per_stream else DASH),
-            (f"[bold]{fmt_rate(prefill)}[/]"
-             if measured and prefill is not None else DASH),
-            f"{ttft:.1f}" if measured and ttft is not None else DASH,
-        ],
+        [label for label, _, _ in columns],
+        [value for _, _, value in columns],
+        groups=[group for _, group, _ in columns],
     )
 
 
@@ -518,12 +604,19 @@ def bands(
     """
     live = document.get("live") or {}
     lane = document.get("lane") or {}
-    parts: list[object] = [serving_band(lane, live)]
+    parts: list[object] = [serving_band(lane, live, width=width)]
     if live.get("state") != "measured":
         reason = live.get("reason") or "no reading"
         parts.append(Text.from_markup(
             f"[yellow]live entry unavailable[/]"
             f"[dim] — {escape(str(reason))}[/]"
+        ))
+    if not utilisation_window(lane):
+        # The lane published no window, so the window columns are dashes and a
+        # line above them names the fact, as for an unreadable receipt row.
+        parts.append(Text.from_markup(
+            "[yellow]window unavailable[/]"
+            "[dim] — the lane document carries no utilisation block[/]"
         ))
     queue = document.get("queue")
     if isinstance(queue, dict):

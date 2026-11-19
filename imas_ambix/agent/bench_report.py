@@ -24,9 +24,10 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import re
-import statistics
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from imas_ambix.agent.median import median_or_none
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Iterable, Sequence
@@ -260,13 +261,6 @@ def _positive(values: Iterable[Any]) -> list[float]:
     return kept
 
 
-def _median(values: Sequence[float]) -> float | None:
-    """Median of *values*, or ``None`` when there is nothing to take."""
-    if not values:
-        return None
-    return float(statistics.median(values))
-
-
 def _percentile(values: Sequence[float], quantile: float) -> float | None:
     """Nearest-rank percentile, matching the saved report's convention."""
     if not values:
@@ -438,14 +432,20 @@ def _index_tests(report: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]
         index[key] = {
             "category": key[0],
             "test_name": key[1],
-            "decode_tps": _median(_positive(r.get("decode_tps") for r in passing)),
-            "ttft_s": _median(
+            "decode_tps": median_or_none(
+                _positive(r.get("decode_tps") for r in passing)
+            ),
+            "ttft_s": median_or_none(
                 _positive(r.get("time_to_first_token_s") for r in passing)
             ),
-            "prefill_tps": _median(_positive(r.get("prefill_tps") for r in passing)),
-            "total_time_s": _median(_positive(r.get("total_time_s") for r in passing)),
-            "aggregate_tps": _median(_positive([metadata.get("aggregate_tps")])),
-            "wall_time_s": _median(_positive([metadata.get("wall_time")])),
+            "prefill_tps": median_or_none(
+                _positive(r.get("prefill_tps") for r in passing)
+            ),
+            "total_time_s": median_or_none(
+                _positive(r.get("total_time_s") for r in passing)
+            ),
+            "aggregate_tps": median_or_none(_positive([metadata.get("aggregate_tps")])),
+            "wall_time_s": median_or_none(_positive([metadata.get("wall_time")])),
             "n_workers": int(workers) if workers is not None else None,
             "records": len(group),
             "passed": sum(1 for r in group if r.get("status") == "passed"),
@@ -556,8 +556,8 @@ def describe_run(report: dict[str, Any]) -> dict[str, Any]:
         "has_provenance": any(value != UNKNOWN for value in provenance.values()),
         "spec_decode": _spec_decode(report),
         "acceptance_rate": _acceptance_rate(report),
-        "decode_tps": _median(decode_values),
-        "ttft_median_s": _median(ttft_values),
+        "decode_tps": median_or_none(decode_values),
+        "ttft_median_s": median_or_none(ttft_values),
         "ttft_p95_s": _percentile(ttft_values, 0.95),
         "prefill_tps": prefill,
         "concurrency": concurrency,

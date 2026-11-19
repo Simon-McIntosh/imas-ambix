@@ -49,6 +49,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from imas_ambix.agent.median import median
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
@@ -410,15 +412,6 @@ def _declares_fewer_than_eight_bits(quantization: object) -> bool:
     return match is not None and int(match.group(1)) < 8
 
 
-def _median(values: list[float]) -> float:
-    """The ordinary median, averaging the two middles of an even count."""
-    ordered = sorted(values)
-    middle = len(ordered) // 2
-    if len(ordered) % 2:
-        return ordered[middle]
-    return (ordered[middle - 1] + ordered[middle]) / 2.0
-
-
 def _observations(history: object) -> list[dict]:
     """The rows to read, from a path or an already-read history."""
     if isinstance(history, (str, Path)):
@@ -490,7 +483,7 @@ def provider_median_in_force(history: object, slug: str, when: float) -> dict | 
     if not surviving:
         return None
     return {
-        key: _median([rate[key] for rate in surviving])
+        key: median([rate[key] for rate in surviving])
         for key in ("prompt", "cache_read", "completion")
     }
 

@@ -39,6 +39,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from imas_ambix.agent.median import median_or_none
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
@@ -416,6 +418,18 @@ def window_figures(
         if interval.completion_tokens is not None
     )
     plateau = plateau_tokens_per_second(intervals, start=start, end=end, width=width)
+    # The gate wait is a median for the same reason the context window is: one
+    # request held back through a long admission drags a mean far more than it
+    # moves a median, and the median is the figure that says how long a caller
+    # ordinarily waited at the gate. It is taken over the requests admitted in
+    # the window, which is the population that actually waited at the gate --
+    # requests still queued have no wait to measure yet and a request admitted
+    # earlier belongs to an earlier window. The estimator is the package's one
+    # median, which averages the two middles of an even count: a reader who
+    # compares this figure against a benchmark's median is promised that both
+    # are the same estimator.
+    waits = [interval.gate_wait_seconds for interval in in_window]
+    median_wait = median_or_none(waits)
     mean = sweep["mean_in_service"]
     share = sweep["share_at_width"]
     below = sweep["below_width_seconds"]
@@ -424,6 +438,7 @@ def window_figures(
         "observed_seconds": round(float(sweep["seconds"] or 0.0), 3),
         "capacity": capacity,
         "mean_in_service": None if mean is None else round(float(mean), 2),
+        "median_gate_wait_seconds": _rounded(median_wait),
         "share_at_width": None if share is None else round(float(share), 3),
         "below_width_seconds": None if below is None else round(float(below), 1),
         "slots_offered_not_taken_seconds": _rounded(
