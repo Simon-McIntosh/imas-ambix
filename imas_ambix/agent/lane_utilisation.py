@@ -37,7 +37,7 @@ import math
 from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from imas_ambix.agent.median import median_or_none
 
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 # slot after its last admission. Both are published beside the figures; the
 # defaults match the gate's own so a caller that passes neither still computes
 # the block the gate publishes.
-DEFAULT_MARGIN = 1.25
+DEFAULT_MARGIN = 1.5
 DEFAULT_WORKING_HORIZON_SECONDS = 180.0
 DEFAULT_HOUR_SECONDS = 3600.0
 # A level's rate is the mean of its requests, so a bin holding a handful of them
@@ -127,39 +127,42 @@ def _clip(interval: RequestInterval, start: float, end: float) -> tuple[float, f
 
 
 def _live_spans(
-    intervals: Sequence[RequestInterval], *, working_horizon: float
+    intervals: Sequence[RequestInterval],
+    *,
+    working_horizon: float = 0.0,
+    starts_at: Literal["admitted", "arrived"] = "admitted",
 ) -> dict[str, tuple[float, float]]:
-    """Each run's live span: first admission to its last end, or the horizon.
+    """Each run's span: its first request to its last request's end.
 
-    A run claims a slot while a request of it is in service, and for the working
-    horizon after its last admission -- the same claim the per-session share
-    makes, so a run that stopped working stops counting as a live run.
+    ``starts_at="admitted"`` is the live span the lane claims a slot over: a run
+    claims from its first admission and for ``working_horizon`` after its last
+    one -- the same claim the per-session share makes, so a run that stopped
+    working stops counting as a live run.
+
+    ``starts_at="arrived"`` with no horizon is the span the run offered its load
+    over: the record's own first and last times, so the horizon is not stretched
+    into a run that has stopped asking, and the wait between asking and being
+    served is inside the span where the caller can take it out.
     """
     first: dict[str, float] = {}
-    last_admission: dict[str, float] = {}
+    last_start: dict[str, float] = {}
     last_end: dict[str, float] = {}
     for interval in intervals:
-        if interval.run_id is None:
+        run = interval.run_id
+        if run is None:
             continue
-        first[interval.run_id] = min(
-            first.get(interval.run_id, interval.admitted), interval.admitted
-        )
-        last_admission[interval.run_id] = max(
-            last_admission.get(interval.run_id, interval.admitted), interval.admitted
-        )
-        last_end[interval.run_id] = max(
-            last_end.get(interval.run_id, interval.ended), interval.ended
-        )
+        opening = interval.arrived if starts_at == "arrived" else interval.admitted
+        first[run] = min(first.get(run, opening), opening)
+        last_start[run] = max(last_start.get(run, opening), opening)
+        last_end[run] = max(last_end.get(run, interval.ended), interval.ended)
     return {
-        run: (first[run], max(last_end[run], last_admission[run] + working_horizon))
+        run: (first[run], max(last_end[run], last_start[run] + working_horizon))
         for run in first
     }
 
 
 def offered_load(
-    intervals: Sequence[RequestInterval],
-    *,
-    working_horizon: float = DEFAULT_WORKING_HORIZON_SECONDS,
+    intervals: Sequence[RequestInterval], *, include_gate_wait: bool = False
 ) -> float | None:
     """The load one live run offers the gate when it does not wait.
 
@@ -169,22 +172,47 @@ def offered_load(
     not read a fuller lane as room for more workers -- the failure a duty
     measured over the whole live span has.
 
-    ``None`` when the keyed runs offer no live span at all: a lane whose runs
-    are all unkeyed cannot state the load, and a zero would divide.
+    The span is the one the record observed, first arrival to last request end,
+    not the working horizon a run keeps claiming a slot for after it last asked:
+    that horizon is the slot claim, and stretching the span by it would read a
+    run that has stopped asking as a lighter run.
+
+    ``include_gate_wait`` states that failing rule instead: the duty is then
+    the service time over the whole live span, so a run that waits looks like a
+    lighter run and the rule admits more the longer the queue gets. Nothing in
+    the lane sets it; the simulation's negative control is its only caller, and
+    it exists so that control exercises this code rather than a copy of it.
+
+    The figure is the mean over the live runs, each run one vote: a run's own
+    duty is the load one live run offers, and averaging it over the lane is what
+    keeps the estimate the section asks for. Weighting the average by span
+    instead would let the longest-lived run set it -- a pooled ratio moves as a
+    cohort ages, which is a change in who has been alive longest, not in the
+    load the lane's runs offer. A median would give each run one vote too, but a
+    few dozen runs make a noisy median when the think times are as heavy-tailed
+    as these are, and the rule would size a dispatch from that noise.
+
+    ``None`` when no keyed run offers a live span at all: a lane whose runs are
+    all unkeyed cannot state the load, and a zero would divide.
     """
-    service = 0.0
-    waited = 0.0
+    service: dict[str, float] = {}
+    waited: dict[str, float] = {}
     for interval in intervals:
-        if interval.run_id is None:
+        run = interval.run_id
+        if run is None:
             continue
-        service += interval.service_seconds
-        waited += interval.gate_wait_seconds
-    spans = _live_spans(intervals, working_horizon=working_horizon)
-    live = sum(end - start for start, end in spans.values())
-    available = live - waited
-    if available <= 0 or service <= 0:
+        service[run] = service.get(run, 0.0) + interval.service_seconds
+        waited[run] = waited.get(run, 0.0) + interval.gate_wait_seconds
+    duties: list[float] = []
+    for run, (start, end) in _live_spans(intervals, starts_at="arrived").items():
+        live = end - start
+        available = live if include_gate_wait else live - waited[run]
+        if available <= 0:
+            continue
+        duties.append(service[run] / available)
+    if not duties:
         return None
-    return service / available
+    return sum(duties) / len(duties)
 
 
 def capacity_from_offered_load(
@@ -192,7 +220,7 @@ def capacity_from_offered_load(
     *,
     width: int,
     margin: float = DEFAULT_MARGIN,
-    working_horizon: float = DEFAULT_WORKING_HORIZON_SECONDS,
+    include_gate_wait: bool = False,
 ) -> int | None:
     """How many runs the gate's width can hold at the load they offer.
 
@@ -200,7 +228,7 @@ def capacity_from_offered_load(
     to a whole run: a run is admitted whole. ``None`` when the load cannot be
     stated, because a capacity guessed there would size a dispatch.
     """
-    load = offered_load(intervals, working_horizon=working_horizon)
+    load = offered_load(intervals, include_gate_wait=include_gate_wait)
     if load is None or width <= 0 or margin <= 0:
         return None
     return max(0, math.floor(margin * width / load))
@@ -494,19 +522,9 @@ def utilisation_block(
         # holds, so a starved window's spare slots are the ones its own load
         # implies rather than a figure carried in from a busier hour.
         inside = [interval for interval in intervals if interval.ended > start]
-        capacity = capacity_from_offered_load(
-            inside,
-            width=width,
-            margin=margin,
-            working_horizon=working_horizon,
-        )
+        capacity = capacity_from_offered_load(inside, width=width, margin=margin)
         if capacity is None:
-            capacity = capacity_from_offered_load(
-                intervals,
-                width=width,
-                margin=margin,
-                working_horizon=working_horizon,
-            )
+            capacity = capacity_from_offered_load(intervals, width=width, margin=margin)
         return window_figures(
             intervals,
             width=width,

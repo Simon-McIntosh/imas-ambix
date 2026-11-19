@@ -86,11 +86,15 @@ ADMISSION_FIELDS = ("headroom", "verdict", "waiting", "oldest_wait_seconds")
 #: busy request-seconds whose requests carry no usable run id, and the run-keyed
 #: figures beside it are computed over the remainder, so without it those
 #: figures describe an unstated fraction of the lane. ``worker_slots_basis``
-#: travels with them too: it says whether the slots were measured or assumed at
-#: one request per run, which a reader needs to know whether the figure is a
-#: level or an upper bound.
+#: travels with them too: it says whether the capacity was measured from the
+#: load the live runs offer or assumed from the gate's own width, which a reader
+#: needs to know whether the figure is a level or a bound. ``capacity`` and
+#: ``margin`` travel with them because the slot count is capacity less the live
+#: runs, and the margin is the dial the capacity was sized at.
 WORKER_SLOT_FIELDS = (
+    "capacity",
     "live_runs",
+    "margin",
     "observed_seconds",
     "requests_per_run",
     "worker_slots",
@@ -320,9 +324,7 @@ def receipt_serves(
     ordered = sorted(
         chosen.items(), key=lambda item: (item[1][0], item[1][1]), reverse=True
     )
-    return [
-        (identity, entry[2], entry[0], entry[3]) for identity, entry in ordered
-    ]
+    return [(identity, entry[2], entry[0], entry[3]) for identity, entry in ordered]
 
 
 def _raw_receipt_files(base: Path) -> list[Path]:
@@ -482,9 +484,7 @@ def live_block(
     reader watching a lane of several serves reads each one's own counters out
     of the list rather than taking one serve for the whole machine.
     """
-    entries = live_entries(
-        receipts_dir, now=now, shelf_life_seconds=shelf_life_seconds
-    )
+    entries = live_entries(receipts_dir, now=now, shelf_life_seconds=shelf_life_seconds)
     block = dict(entries[0]) if entries else _single_block(receipts_dir, now=now)
     block["engines"] = entries
     return block
@@ -750,7 +750,8 @@ def panel_engines(
     they had been measured.
     """
     pool = [
-        entry for entry in (lane_document.get("engines") or [])
+        entry
+        for entry in (lane_document.get("engines") or [])
         if isinstance(entry, dict)
     ]
     used: set[int] = set()
@@ -761,19 +762,18 @@ def panel_engines(
     # pool entry and one live reading carry it, which is a fact rather than a
     # guess.
     live_models: Counter[str] = Counter(
-        str(live.get("served_name")) for live in live_entries
-        if live.get("served_name")
+        str(live.get("served_name")) for live in live_entries if live.get("served_name")
     )
     unnamed_models: Counter[str] = Counter(
-        model for entry in pool
+        model
+        for entry in pool
         if (model := _pool_model(entry)) and _pool_identity(entry)[0] is None
     )
     for live in live_entries:
         match = _matching_engine(pool, used, live, live_models, unnamed_models)
         if match is not None:
             used.add(match)
-        entries.append(_engine_entry(pool[match] if match is not None
-                                     else {}, live))
+        entries.append(_engine_entry(pool[match] if match is not None else {}, live))
     for index, engine in enumerate(pool):
         if index not in used:
             entries.append(_engine_entry(engine, None))
@@ -820,15 +820,15 @@ def _match_on_host(
 ) -> int | None:
     """The entry on *host*, separated from its neighbours by *model*."""
     on_host = [
-        index for index, engine in enumerate(pool)
+        index
+        for index, engine in enumerate(pool)
         if index not in used and _pool_identity(engine)[0] == host
     ]
     if not on_host:
         return None
     if len(on_host) > 1:
         named = [
-            index for index in on_host
-            if model and _pool_model(pool[index]) == model
+            index for index in on_host if model and _pool_model(pool[index]) == model
         ]
         if len(named) != 1:
             return None
@@ -888,14 +888,14 @@ def _host_name(host: str) -> str:
 
 def _engine_host(engine_id: str) -> str:
     """The node name out of an engine id, which is ``<host>:<port>``."""
-    return _host_name(engine_id.rsplit(":", 1)[0]) if ":" in engine_id else _host_name(
-        engine_id
+    return (
+        _host_name(engine_id.rsplit(":", 1)[0])
+        if ":" in engine_id
+        else _host_name(engine_id)
     )
 
 
-def _engine_entry(
-    gate: dict[str, Any], live: dict[str, Any] | None
-) -> dict[str, Any]:
+def _engine_entry(gate: dict[str, Any], live: dict[str, Any] | None) -> dict[str, Any]:
     """One engine's row: its live figures and the gate reading beside them."""
     gate_block = gate.get("router_generation_gate")
     gate_block = gate_block if isinstance(gate_block, dict) else {}
@@ -1005,9 +1005,10 @@ def _lane_document(path: str | Path, *, now: datetime | None = None) -> dict[str
     # lane serving more than one pool -- and this document is then the default
     # pool's own, whatever it spans. A lane carrying a single pool keeps the
     # document it has always had.
-    several = isinstance(index, dict) and len(
-        {name for name in index.values() if isinstance(name, str) and name}
-    ) > 1
+    several = (
+        isinstance(index, dict)
+        and len({name for name in index.values() if isinstance(name, str) and name}) > 1
+    )
     engines = _document_engines(document, standalone=several)
     if isinstance(index, dict):
         for model, name in index.items():
@@ -1017,15 +1018,15 @@ def _lane_document(path: str | Path, *, now: datetime | None = None) -> dict[str
             if other == target:
                 continue
             document_of_other = _read_document(other)
-            if isinstance(model, str) and model and not document_of_other.get(
-                "model_id"
+            if (
+                isinstance(model, str)
+                and model
+                and not document_of_other.get("model_id")
             ):
                 # The index is keyed by model, so a document that does not name
                 # its own still has one, and the entry needs it to be joined.
                 document_of_other = {**document_of_other, "model_id": model}
-            engines.extend(
-                _document_engines(document_of_other, standalone=True)
-            )
+            engines.extend(_document_engines(document_of_other, standalone=True))
     if not engines:
         return document
     merged = dict(document)
@@ -1055,8 +1056,9 @@ def _document_engines(
     pool is not, because it is then the whole lane and the recorder already
     names the engine it serves.
     """
-    entries = [entry for entry in (document.get("engines") or [])
-               if isinstance(entry, dict)]
+    entries = [
+        entry for entry in (document.get("engines") or []) if isinstance(entry, dict)
+    ]
     if entries:
         return entries
     if standalone and document.get("state") != "unavailable":
@@ -1076,9 +1078,11 @@ def published_shelf_life(path: str | Path) -> int:
         document = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return DEFAULT_SHELF_LIFE_SECONDS
-    published = document.get("suggested_shelf_life_seconds") if isinstance(
-        document, dict
-    ) else None
+    published = (
+        document.get("suggested_shelf_life_seconds")
+        if isinstance(document, dict)
+        else None
+    )
     if isinstance(published, int | float) and not isinstance(published, bool):
         return int(published)
     return DEFAULT_SHELF_LIFE_SECONDS

@@ -31,6 +31,7 @@ from imas_ambix.agent.lane_utilisation import (
     DEFAULT_HOUR_SECONDS,
     DEFAULT_MARGIN,
     RequestInterval,
+    capacity_from_offered_load,
     utilisation_block,
 )
 from imas_ambix.agent.request_receipts import (
@@ -269,6 +270,11 @@ class _GateSettings:
     cut: bool = False
     cut_form: str = DEFAULT_GATE_CUT_FORM
     reason: str | None = None
+    # The margin capacity is sized at: the lane admits this multiple of the runs
+    # whose average demand fills the gate, so a step up buys a few tokens/s and
+    # a few seconds of gate wait. Published beside the capacity it produced, so
+    # a reader can reconcile the two without the control file.
+    margin: float = DEFAULT_MARGIN
 
 
 # The window the worker-slot figures average over. It is the horizon long
@@ -342,15 +348,15 @@ class _BusyInterval:
 
 
 class _AdmissionLedger:
-    """Busy request-seconds over a trailing window, keyed by the request's run.
+    """The lane's live runs, capacity and spare slots from one record.
 
-    The three figures it derives answer the question a dispatcher actually asks.
-    ``live_runs`` is how many runs share the lane, ``requests_per_run`` is how
-    many requests one of them holds in flight on average, and ``worker_slots``
-    is how many more the gate's width can take. The ratio is a share of keyed
-    busy time: a request carrying no usable run id cannot be attributed to a
-    run, so it is excluded from the ratio and reported separately as
-    ``unkeyed_share`` -- itself a share of busy time, because an unkeyed
+    The figures answer the question a dispatcher actually asks. ``live_runs``
+    is how many runs hold the lane now, ``capacity`` is how many runs the gate
+    can hold at the load they offer when none of them waits. Publishes the
+    margin capacity was sized at beside it, and ``worker_slots`` is capacity
+    less the runs. A request carrying no usable run id cannot be attributed to
+    a run, so it is excluded from the run-keyed figures and reported separately
+    as ``unkeyed_share`` -- itself a share of busy time, because an unkeyed
     consumer that holds the lane is what a dispatcher needs to see.
     """
 
@@ -483,8 +489,43 @@ class _AdmissionLedger:
         )
 
     def snapshot(
-        self, *, now: float, effective_width: int, verdict: str
+        self,
+        *,
+        now: float,
+        effective_width: int,
+        verdict: str,
+        margin: float = DEFAULT_MARGIN,
+        waiting_runs: Iterable[str] = (),
+        waiting_count: int = 0,
+        duty_includes_wait: bool = False,
+        claim_seconds: float | None = None,
     ) -> dict[str, object]:
+        """The lane's live runs, capacity and spare slots from its record.
+
+        A run holds a slot while one of its requests is in service, or while it
+        made a request within the working horizon. Its service and its gate wait
+        come from that same record, so the load one run offers is its service
+        time over its live span less its gate wait. Capacity is the margin times
+        the gate's width over that load: the count whose average demand fills
+        the gate when none of them waits. A run that waits longer does not read
+        as a lighter run, so the fuller lane cannot buy itself more workers.
+
+        ``waiting_runs`` is the gate's own queue. A request that is waiting has
+        not been admitted, so the ledger holds no interval for it, and the run
+        it belongs to would otherwise be invisible until its turn came.
+        ``waiting_count`` is the same claim for runs whose identity the caller
+        does not hold -- a simulation's admitted workers that have not started
+        asking yet -- and only the count can matter, because such a run holds a
+        slot and offers the load nothing to the record.
+        ``duty_includes_wait`` states the failing rule the simulation's negative
+        control measures itself against; the lane never sets it.
+
+        ``claim_seconds`` is the reproduction's reading of the same record, not
+        the lane's: a run is then live while a request of it is in service or
+        ended within that many seconds, which is the population of runs whose
+        requests the averaging window shows. The lane publishes the shorter
+        working-horizon claim, because a run that stopped asking holds no slot.
+        """
         window_start = now - self._window
         # The ledger's clock starts at its first admission, so a router younger
         # than the window has observed only part of it. Divide by that span, not
@@ -496,69 +537,104 @@ class _AdmissionLedger:
             if self._first_admission is None
             else min(self._window, max(0.0, now - self._first_admission))
         )
-        keyed_runs: set[str] = set()
+        horizon_start = now - WORKING_HORIZON_SECONDS
+        # The reproduction claims a run for its window of 900 s; the lane claims
+        # it for the working horizon from its last admission.
+        claim_start = now - claim_seconds if claim_seconds is not None else None
+        live_sessions: dict[str, set[str]] = {}
+        live_runs_seen: set[str] = set()
         keyed_busy = 0.0
         unkeyed_busy = 0.0
         total_busy = 0.0
         samples = 0
         for interval in self._intervals:
             end = now if interval.ended is None else interval.ended
+            if claim_start is None:
+                claimed = interval.started >= horizon_start
+            else:
+                claimed = interval.ended is not None and interval.ended > claim_start
+            if interval.run_id and (interval.ended is None or claimed):
+                live_runs_seen.add(interval.run_id)
+                live_sessions.setdefault(
+                    interval.session or UNATTRIBUTED_SESSION, set()
+                ).add(interval.run_id)
             start = max(interval.started, window_start)
             if start >= end:
                 continue
             busy = end - start
             samples += 1
-            total_busy += busy
             if interval.run_id:
-                keyed_runs.add(interval.run_id)
                 keyed_busy += busy
             else:
                 unkeyed_busy += busy
-        live_runs = len(keyed_runs)
+            total_busy += busy
+        # A live run's load is its whole record over its whole span, not only
+        # the requests that happened to fall inside the averaging window: the
+        # service it did before the window is part of the request span that
+        # contains it, and dropping it would read the run as a lighter one than
+        # it is.
+        live_intervals = [
+            RequestInterval(
+                arrived=interval.arrived,
+                admitted=interval.started,
+                ended=now if interval.ended is None else interval.ended,
+                completion_tokens=interval.completion_tokens,
+                run_id=interval.run_id,
+            )
+            for interval in self._intervals
+            if interval.run_id in live_runs_seen
+        ]
+        # A run whose only request is still at the gate has no interval, so the
+        # gate's queue is the only place it can be counted. It claims a slot but
+        # names no session here, and the sessions below are the runs holding
+        # intervals, so the two never double count the same run.
+        live_run_ids = live_runs_seen
+        live_runs = (
+            len(live_run_ids)
+            + len({run for run in waiting_runs if run} - live_run_ids)
+            + max(0, waiting_count)
+        )
         fields: dict[str, object] = {
             "window_seconds": self._window,
             "observed_seconds": observed,
             "samples": samples,
             "live_runs": live_runs,
+            "margin": round(margin, 3),
             "unkeyed_share": (unkeyed_busy / total_busy) if total_busy > 0 else None,
         }
         history_ready = (
             self._first_admission is not None
             and now - self._first_admission >= self._min_history
         )
-        if live_runs < self._min_live_runs or not history_ready or keyed_busy <= 0:
+        capacity = capacity_from_offered_load(
+            live_intervals,
+            width=effective_width,
+            margin=margin,
+            include_gate_wait=duty_includes_wait,
+        )
+        if (
+            live_runs < self._min_live_runs
+            or not history_ready
+            or keyed_busy <= 0
+            or capacity is None
+        ):
             return self._assume_one_request_per_run(
                 fields,
-                now=now,
                 effective_width=effective_width,
                 verdict=verdict,
                 live_runs=live_runs,
+                live_sessions=live_sessions,
             )
         published_ratio = round(keyed_busy / observed / live_runs, 3)
-        if published_ratio <= 0:
-            # A ratio that rounds to zero would divide by zero in the slot
-            # arithmetic and describes no request a run can actually hold, so
-            # the ratio is withheld -- but the slots it would have sized are
-            # still published, from the assumed one request per run.
-            return self._assume_one_request_per_run(
-                fields,
-                now=now,
-                effective_width=effective_width,
-                verdict=verdict,
-                live_runs=live_runs,
-            )
-        fields["requests_per_run"] = published_ratio
+        fields["requests_per_run"] = published_ratio if published_ratio > 0 else None
         fields["worker_slots_basis"] = "measured"
-        # The capacity the per-session share divides, from the published ratio so
-        # a reader's own arithmetic on the two published figures is the figure
-        # the router published.
-        capacity = math.floor(effective_width / published_ratio)
+        fields["capacity"] = capacity
         fields["worker_slots"] = self._slot_count(
             verdict=verdict, capacity=capacity, live_runs=live_runs
         )
         fields.update(
             self._session_figures(
-                now=now,
+                workers=live_sessions,
                 capacity=capacity,
                 global_slots=fields["worker_slots"],
             )
@@ -569,34 +645,35 @@ class _AdmissionLedger:
         self,
         fields: dict[str, object],
         *,
-        now: float,
         effective_width: int,
         verdict: str,
         live_runs: int,
+        live_sessions: dict[str, set[str]],
     ) -> dict[str, object]:
-        """Publish slots from an assumed one request per run.
+        """Publish slots from the gate's own width when the load is unstated.
 
-        The measured ratio cannot be formed on a thin window -- fewer than the
-        minimum live runs, less than the minimum history, no keyed busy time, or
-        a ratio that rounds to zero. Rather than withhold the slots, the ledger
-        assumes one request per run, the most a run can hold, so the figure is
-        an upper bound bounded by the gate and never overstates the measured one.
-        The ratio itself stays null and ``worker_slots_basis`` reads ``assumed``,
-        so reckon and gpu-watch can tell the two apart.
-
-        Capacity is then the whole effective width, and the per-session figures
-        divide that same capacity, so a lane that cannot measure its ratio still
-        offers a dispatcher the unit it works in.
+        Capacity needs a load, and a thin record cannot state one: fewer than
+        the minimum live runs, less than the minimum history, no keyed busy
+        time, or live runs offering no span at all. Rather than guess a load,
+        the ledger takes the gate's width as the capacity, which is the bound a
+        run holding one request continuously in service would impose with no
+        margin. The margin multiplies a measurement, and there is none here, so
+        it is published beside the figure and not applied to it. The ratio stays
+        null and ``worker_slots_basis`` reads ``assumed``, so a dispatcher can
+        tell a level from a bound.
         """
         fields["requests_per_run"] = None
         fields["worker_slots_basis"] = "assumed"
         capacity = max(0, effective_width)
+        fields["capacity"] = capacity
         slots = self._slot_count(
             verdict=verdict, capacity=capacity, live_runs=live_runs
         )
         fields["worker_slots"] = slots
         fields.update(
-            self._session_figures(now=now, capacity=capacity, global_slots=slots)
+            self._session_figures(
+                workers=live_sessions, capacity=capacity, global_slots=slots
+            )
         )
         return fields
 
@@ -606,37 +683,35 @@ class _AdmissionLedger:
 
         A congested or full gate is the gate doing its job: the requests beyond
         its width wait here rather than on the engine, so a backlog costs the
-        cards nothing and keeps them fed between one worker's turns. The
-        capacity is already the bound, because it is the number of runs whose
-        average demand fills the width. Only a paused gate admits nothing new.
-        Zeroing the slots whenever a request waited would stop dispatchers at
-        the first queued request, so the queue could never hold the work that
-        keeps the lane busy after its coordinators stop.
+        cards nothing and keeps them fed between one worker's turns. Only a
+        paused gate admits nothing new: the capacity already accounts for the
+        lane's own queueing, so a wait beyond it is a different diagnosis and is
+        reported by the wait bound rather than read off an instant's queue
+        depth. Zeroing the slots whenever a request waited would stop
+        dispatchers at the first queued request, so the queue could never hold
+        the work that keeps the lane busy after its coordinators stop.
         """
         if verdict == "paused":
             return 0
         return max(0, capacity - live_runs)
 
     def _session_figures(
-        self, *, now: float, capacity: int, global_slots: int
+        self,
+        *,
+        workers: dict[str, set[str]],
+        capacity: int,
+        global_slots: int,
     ) -> dict[str, object]:
         """Divide the lane's slots between the sessions still working.
 
-        A session is working while one of its requests is in flight or was
-        admitted within ``WORKING_HORIZON_SECONDS``, and its workers are the
-        distinct run ids it holds in that state. One session working alone takes
-        the whole server; two or more divide the capacity fairly, and a session
-        below its share recovers as the runs ahead of it finish.
+        ``workers`` is the live set ``snapshot`` already computed from the one
+        record: the distinct run ids each session holds in service or admitted
+        within ``WORKING_HORIZON_SECONDS``. Dividing from that same map is what
+        keeps the per-session block and the lane-wide count from disagreeing
+        about which runs are live. One session working alone takes the whole
+        server; two or more divide the capacity fairly, and a session below its
+        share recovers as the runs ahead of it finish.
         """
-        horizon_start = now - WORKING_HORIZON_SECONDS
-        workers: dict[str, set[str]] = {}
-        for interval in self._intervals:
-            if not interval.run_id:
-                continue
-            if interval.ended is not None and interval.started < horizon_start:
-                continue
-            session = interval.session or UNATTRIBUTED_SESSION
-            workers.setdefault(session, set()).add(interval.run_id)
         active_sessions = len(workers)
 
         if active_sessions <= 1:
@@ -812,7 +887,7 @@ class _GenerationGate:
         self._last_logged_settings: _GateSettings | None = None
         self._next_config_refresh_at = 0.0
         self._condition = asyncio.Condition()
-        self._waiters: deque[tuple[object, float]] = deque()
+        self._waiters: deque[tuple[object, float, str | None]] = deque()
         self._in_flight = 0
         # Set by the shutdown signal, which arrives on the process's main thread
         # and outside the event loop. The flag is therefore the state, and the
@@ -953,17 +1028,23 @@ class _GenerationGate:
         """
         queue, settings, verdict = self._queue_snapshot()
         now = time.monotonic()
+        # A request waiting at the gate has not been admitted, so the ledger
+        # holds no interval for it; the queue is the only record of its run.
+        waiting_runs = {entry[2] for entry in self._waiters if entry[2]}
         queue.update(
             self._admissions.snapshot(
                 now=now,
                 effective_width=settings.width,
                 verdict=verdict,
+                margin=settings.margin,
+                waiting_runs=waiting_runs,
             )
         )
         utilisation = self._admissions.utilisation(
             now=now,
             effective_width=settings.width,
             paused=verdict == "paused",
+            margin=settings.margin,
         )
         # The window mean in service is published beside the utilisation block
         # rather than only inside it: the block answers how full the lane ran,
@@ -1021,12 +1102,13 @@ class _GenerationGate:
         if settings != self._last_logged_settings:
             logger.info(
                 "generation gate config path=%s engine=%s width=%d "
-                "wait_seconds=%s paused=%s reason=%s",
+                "wait_seconds=%s paused=%s margin=%s reason=%s",
                 self.config_path,
                 self._engine_id or "(unresolved)",
                 settings.width,
                 settings.wait_seconds,
                 settings.paused,
+                settings.margin,
                 settings.reason,
             )
             self._last_logged_settings = settings
@@ -1101,6 +1183,14 @@ class _GenerationGate:
         reason = payload.get("reason")
         if reason is not None and not isinstance(reason, str):
             raise ValueError("reason must be a string")
+        margin = payload.get("margin", self._defaults.margin)
+        if (
+            isinstance(margin, bool)
+            or not isinstance(margin, int | float)
+            or not math.isfinite(margin)
+            or margin <= 0
+        ):
+            raise ValueError("margin must be a finite positive number")
         target = payload.get("occupancy_target", DEFAULT_AUTO_OCCUPANCY_TARGET)
         raw_width = payload.get("width", self._defaults.width)
         if raw_width == GATE_AUTO_WIDTH:
@@ -1131,6 +1221,7 @@ class _GenerationGate:
                 cut=cut,
                 cut_form=cut_form,
                 reason=reason,
+                margin=float(margin),
             )
             return replace(settings, width=self._auto_width(settings))
         if type(raw_width) is not int or raw_width < 0:
@@ -1143,6 +1234,7 @@ class _GenerationGate:
             cut=cut,
             cut_form=cut_form,
             reason=reason,
+            margin=float(margin),
         )
 
     def _memory_width(self, settings: _GateSettings) -> int | None:
@@ -1663,7 +1755,7 @@ class _GenerationGate:
         disconnect_task = asyncio.create_task(RouterApp._wait_for_disconnect(receive))
         carry_disconnect = False
         async with self._condition:
-            self._waiters.append((token, arrived_at))
+            self._waiters.append((token, arrived_at, run_id))
             self._condition.notify_all()
         try:
             while True:
