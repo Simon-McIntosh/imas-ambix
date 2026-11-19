@@ -1,19 +1,39 @@
 <!doctype html>
 <html><head><title>§5 gate wait bound</title></head><body>
 <h1>Gate wait bound: measured instrument</h1>
-<p>Implementation: <code>worker_slots_reason</code> in <code>_AdmissionLedger.snapshot</code>,
-with <code>gate_wait_p90_seconds</code> over the last five minutes and the bound read
-from the gate's control file as <code>wait_bound_seconds</code> (default 30 s).</p>
+<p>Implementation: <code>_AdmissionLedger.snapshot</code> publishes
+<code>gate_wait_p90_seconds</code> over the same record's last five minutes and
+zeroes <code>worker_slots</code> while it exceeds <code>wait_bound_seconds</code>
+(read from the gate's control file, 30 s by default). One field,
+<code>worker_slots_reason</code>, names a pause or a wait closure.</p>
+
+<h2>High-margin run (the pass condition)</h2>
+<p>§3 instrument calibrated from the committed fed window 04:45–06:40 UTC on
+18 November, 4.5 h, seed 0, bound 30 s, <strong>margin 2.8</strong>. Five-minute
+windows start at the end of the 1800 s warm-up; the settled set drops the first
+ten minutes after it. Command: <code>uv run --no-sync python
+margin_probe.py</code> on <code>all_debug</code>.</p>
 <table>
-<tr><th>arm (early-window calibration, think /3 at 2 h)</th><th>tok/s</th><th>workers</th><th>p90 max, 5-min windows after change +10 min</th><th>windows over 45 s</th><th>documents closed for wait</th></tr>
-<tr><td>bound 30 s</td><td>347.3</td><td>24.7</td><td>35.25 s</td><td>26</td></tr>
-<tr><td>bound disabled</td><td>347.3</td><td>24.7</td><td>35.25 s</td><td>0</td><td>0</td></tr>
+<tr><th>arm</th><th>tok/s</th><th>workers</th><th>p90 max, settled windows</th><th>settled windows over 45 s</th><th>documents closed for wait</th></tr>
+<tr><td>bound 30 s</td><td>444.5</td><td>39.9</td><td>41.5 s</td><td>0</td><td>372 (all with slots 0)</td></tr>
+<tr><td>bound disabled</td><td>445.1</td><td>42.5</td><td>54.25 s</td><td>2</td><td>0</td></tr>
 </table>
-<p>The bound fires: 26 published documents in the early-window run carry
-<code>worker_slots_reason: gate_wait</code> with <code>worker_slots: 0</code>.
-The negative control does not exceed 45 s, and the two arms are identical to
-the digit: in the simulation the dispatcher admits <code>min(slots, capacity -
-held)</code>, and the published capacity, not the slot count, caps the pool, so
-zeroing the slots changes no launch. Logs:
-<code>logs/s5-probe-early3.log</code>, <code>logs/s5-probe</code>.</p>
+<p>The same margin on seeds 1 and 2: bound-disabled p90 max 58.25 s and 44.5 s,
+bound-enabled settled p90 max 48.25 s and 42.25 s. The margin is the evidence
+figure, not a default; the pass run above is seed 0.</p>
+
+<h2>Think time dropping to a third at two hours (measured, not a pass condition)</h2>
+<p>Default margin 1.5, early-window calibration (think 17.9 s, mean), think time
+divided by three at 7200 s. Both arms carry the same worst settled window,
+35.25 s, because a pool already at its published capacity has no slot left for
+the bound to close: the dispatcher admits the lesser of the published slots and
+the published capacity less the workers held, and the capacity caps the pool.</p>
+
+<h2>Unit tests</h2>
+<p>The document fields at the bound, just under it and just over it, a paused
+gate and a wait-closed gate differing only in the reason field, a wait older
+than the window reopening the slots, and the control-file read and its malformed
+fallback: <code>tests/test_agent_lane_wait_bound.py</code>.</p>
+<p>Logs: <code>logs/margin-seeds.log</code>, <code>logs/s5-probe-early3.log</code>,
+<code>logs/s5-gate.log</code>.</p>
 </body></html>

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from imas_ambix.agent.lane_sim import LaneSim, calibrate_rows, read_receipts
+from imas_ambix.agent.lane_utilisation import percentile_or_none
 from imas_ambix.agent.router import (
     DEFAULT_WAIT_BOUND_SECONDS,
     _AdmissionLedger,
     _GenerationGate,
 )
 
+_RECEIPTS = Path(__file__).parent / "data" / "lane_receipts"
 _NOW = 10_000.0
 
 
@@ -103,3 +108,59 @@ def test_a_malformed_bound_falls_back_to_the_default(tmp_path) -> None:
     gate_file.write_text('{"width": 12, "wait_bound_seconds": 0}', encoding="utf-8")
     gate = _GenerationGate(gate_file)
     assert gate.settings().wait_bound_seconds == DEFAULT_WAIT_BOUND_SECONDS
+
+
+# --- the simulation: a margin the bound is needed at -----------------------
+
+#: The margin the bound is demonstrated at: sized from the fed window's own
+#: receipts it settles a pool of about 42 runs, where the bound-disabled run
+#: carries a p90 wait over 45 s and the bound holds every settled window under
+#: it. The margin is evidence, not a default.
+_SIM_MARGIN = 2.8
+_SIM_WARM_UP_S = 1800.0
+_SIM_SETTLED_S = _SIM_WARM_UP_S + 600.0
+
+
+def _simulated(bound):
+    rows = read_receipts(_RECEIPTS / "2026-11-18T0445-0640.jsonl.gz")
+    calibration = calibrate_rows(rows, ("2026-11-18T04:45:00Z", "2026-11-18T06:40:00Z"))
+    sim = LaneSim(
+        calibration,
+        seed=0,
+        hours=4.5,
+        margin=_SIM_MARGIN,
+        wait_bound_seconds=bound,
+    )
+    sim.run()
+    return sim
+
+
+def _window_p90s(sim):
+    windows = []
+    lo = _SIM_WARM_UP_S
+    while lo + 300.0 <= sim.end:
+        waits = [wait for at, wait in sim.wait_events if lo <= at < lo + 300.0]
+        windows.append((lo, percentile_or_none(waits, 0.9)))
+        lo += 300.0
+    return windows
+
+
+def test_the_bound_holds_a_high_margin_lane_under_committed_wait() -> None:
+    """A margin whose unbounded run crosses 45 s is held under it by the bound."""
+    unbounded = _simulated(None)
+    bounded = _simulated(DEFAULT_WAIT_BOUND_SECONDS)
+
+    assert unbounded.documents
+    assert bounded.documents
+    unbounded_p90 = [p for _lo, p in _window_p90s(unbounded) if p is not None]
+    assert max(unbounded_p90) > 45.0
+
+    settled = [
+        p for lo, p in _window_p90s(bounded) if lo >= _SIM_SETTLED_S and p is not None
+    ]
+    assert settled and max(settled) < 45.0
+
+    closed = [d for d in bounded.documents if d["worker_slots_reason"] == "gate_wait"]
+    assert closed
+    assert all(d["worker_slots"] == 0 for d in closed)
+    assert not [d for d in unbounded.documents if d["worker_slots_reason"] is not None]
