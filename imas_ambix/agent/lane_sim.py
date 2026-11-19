@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING
 from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN, percentile_or_none
 from imas_ambix.agent.router import (
     ADMISSION_WINDOW_SECONDS,
+    BORROW_RESERVE,
     DEFAULT_WAIT_BOUND_SECONDS,
     _AdmissionLedger,
 )
@@ -44,6 +45,7 @@ from imas_ambix.agent.router import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
     from pathlib import Path
+    from typing import Any
 
 #: The step the simulation advances by. A gate wait is reported to this
 #: resolution and no finer, so a wait shorter than it reads as no wait.
@@ -66,6 +68,13 @@ LANE_WIDTH = 12
 #: The model's own default for the model name. Every committed excerpt carries
 #: it, and a row naming another model describes a different lane.
 LANE_MODEL = "deepseek-v4.1-flash"
+
+#: The session a lane run without declared sessions belongs to: one session
+#: holding every worker.
+DEFAULT_SESSION = "lane"
+#: The key the superseded rule's offers carry the figure for a session the
+#: document has not yet seen working.
+NEW_SESSION = "<new>"
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,6 +284,27 @@ def mean_live_runs(
 
 
 @dataclass(frozen=True, slots=True)
+class Session:
+    """One session's share of a simulated lane.
+
+    ``workers`` is how many it holds when the run starts; ``queue`` is how many
+    launches it has waiting behind them, and ``None`` is the unbounded queue of
+    a session with more work than the lane can take. ``hold`` keeps the starting
+    workers working for the whole run, which is what a session with runs that
+    never end and nothing queued looks like: it holds its runs and takes none of
+    the slots it is offered.
+
+    A session launches only from the offer the published document makes it, so
+    the rule's per-session figures are what the run is measured with rather
+    than an accounting the run keeps for itself.
+    """
+
+    workers: int
+    queue: int | None = None
+    hold: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class RunResult:
     """What one simulated run delivered, after the warm-up is discarded."""
 
@@ -299,6 +329,13 @@ class LaneSim:
     checked against the measured lane. ``workers=None`` instead runs the
     router's rule: every publication period the ledger is asked how many slots
     the lane can take, and the admission pass launches up to that many.
+
+    ``sessions`` divides the rule's pool between sessions, each named with the
+    workers it holds and the launches it has queued. A session launches only up
+    to the offer the published document makes it, so a lane of several sessions
+    is measured with the same arithmetic the router publishes. Without
+    ``sessions`` every worker belongs to one unnamed session, which is the lane
+    run as a single session.
     """
 
     def __init__(
@@ -314,6 +351,8 @@ class LaneSim:
         duty_includes_wait: bool = False,
         wait_bound_seconds: float | None = DEFAULT_WAIT_BOUND_SECONDS,
         think_scale: Callable[[float], float] | None = None,
+        sessions: Mapping[str, Session] | None = None,
+        per_session_reserve: bool = False,
     ) -> None:
         if width < 1:
             raise ValueError("a gate is at least one request wide")
@@ -324,7 +363,6 @@ class LaneSim:
         self.calibration = calibration
         self.width = width
         self.fixed_workers = workers
-        self.queue = queue
         self.margin = margin
         # The counterfactual the rule's negative control runs: duty measured
         # over the live span including the gate wait, so a queued lane reads as
@@ -337,13 +375,31 @@ class LaneSim:
         # shorter turns offers more load, which is what a dropped think time
         # models. The default is the calibration's own workload.
         self.think_scale = think_scale if think_scale is not None else _steady
+        # The counterfactual this section measures: the reserve held once for
+        # every session below its share instead of once for the lane.
+        self.per_session_reserve = per_session_reserve
+        self.sessions: dict[str, Session] = (
+            {DEFAULT_SESSION: Session(workers=0, queue=queue)}
+            if sessions is None
+            else dict(sessions)
+        )
+        self.explicit_sessions = sessions is not None
+        # What each session still has queued. ``None`` is unbounded and 0 means
+        # the session launches nothing more: the runs it holds keep asking, but
+        # nothing replaces them.
+        self.queues: dict[str, int | None] = {
+            name: (10**9 if self.fixed_workers is not None else session.queue)
+            for name, session in self.sessions.items()
+        }
+        # Each session's offer from the last published document.
+        self.offers: dict[str, int] = {}
         self.t = 0.0
         self.end = hours * 3600.0
         self.workers: dict[int, dict[str, float | str]] = {}
         self.next_id = 0
         self.gate: collections.deque[int] = collections.deque()
         self.in_service: set[int] = set()
-        self.launching: list[float] = []
+        self.launching: list[tuple[float, str]] = []
         self.ledger = _AdmissionLedger(window_seconds=ADMISSION_WINDOW_SECONDS)
         self.open_intervals: dict[int, object] = {}
         self.slots = 0
@@ -381,17 +437,18 @@ class LaneSim:
         self.rate_at = rate_at
 
     # -- workers ---------------------------------------------------------
-    def _launch(self) -> None:
+    def _launch(self, session: str) -> None:
         ramp = self.rng.uniform(*LAUNCH_RAMP_S)
-        self.launching.append(self.t + ramp)
+        self.launching.append((self.t + ramp, session))
 
-    def _start_worker(self) -> None:
+    def _start_worker(self, session: str = DEFAULT_SESSION) -> None:
         worker = self.next_id
         self.next_id += 1
         self.workers[worker] = {
             "left": float(self.rng.choice(self.calibration.per_run)),
             "state": "think",
             "until": self.t,
+            "session": session,
         }
 
     def _new_request(self, worker: int) -> None:
@@ -418,6 +475,11 @@ class LaneSim:
         if self.fixed_workers is not None:
             held = len(self.workers) + len(self.launching)
             self.slots = max(0, self.fixed_workers - held)
+            # The fixed pool is its own rule: every session is offered the room
+            # left in it, which the one session holding the pool takes. It is
+            # not shared out per session, because a fixed pool is a reproduction
+            # of a lane held at a count and not a lane moving under the rule.
+            self.offers = {name: self.slots for name in self.sessions}
             return self.slots
         snapshot = self.ledger.snapshot(
             now=self.t,
@@ -430,6 +492,9 @@ class LaneSim:
             # claimed. Without it the rule admits that slot again on the next
             # publication period and the pool overshoots the capacity.
             waiting_count=len(self.launching),
+            # The launched workers' sessions, so the sessions the document
+            # publishes count the runs the lane-wide figure counts.
+            waiting_sessions=[session for _, session in self.launching],
             duty_includes_wait=self.duty_includes_wait,
             wait_bound_seconds=self.wait_bound_seconds,
         )
@@ -445,6 +510,22 @@ class LaneSim:
                 "worker_slots_reason": snapshot["worker_slots_reason"],
             }
         )
+        # Each session launches only from the offer the document makes it: the
+        # per-session figure when the document names the session, and the
+        # new-session figure when it does not yet see it working.
+        live = snapshot.get("sessions") or {}
+        unseen = int(snapshot.get("new_session_worker_slots") or 0)
+        if self.per_session_reserve:
+            counters = per_session_reserve_offers(snapshot)
+            self.offers = {
+                name: counters.get(name, counters[NEW_SESSION])
+                for name in self.sessions
+            }
+        else:
+            self.offers = {
+                name: int((live.get(name) or {}).get("worker_slots", unseen))
+                for name in self.sessions
+            }
         return self.slots
 
     def worker_ten_minute_means(self, *, first_hour: float = 3600.0) -> list[float]:
@@ -467,9 +548,21 @@ class LaneSim:
 
     # -- one run ---------------------------------------------------------
     def run(self, start_workers: int | None = None) -> RunResult:
-        start = start_workers if start_workers is not None else self.width
-        for _ in range(start):
-            self._start_worker()
+        if self.explicit_sessions:
+            start = {
+                name: session.workers for name, session in self.sessions.items()
+            }
+        else:
+            start = {
+                DEFAULT_SESSION: (
+                    start_workers if start_workers is not None else self.width
+                )
+                # The single-session lane is started by the caller's count, as
+                # the fixed-pool reproduction is.
+            }
+        for name, count in start.items():
+            for _ in range(count):
+                self._start_worker(name)
         next_publish = next_admit = 0.0
         tokens_out = 0.0
         while self.t < self.end:
@@ -485,20 +578,44 @@ class LaneSim:
                 # the consumer knows about its pool.
                 held = len(self.workers) + len(self.launching)
                 room = max(0, self.capacity - held) if self.capacity else self.slots
-                for _ in range(min(self.slots, room, LAUNCH_POOL, self.queue)):
-                    self._launch()
-                    self.queue -= 1
-                    self.slots -= 1
+                for name in self.sessions:
+                    # A session launches only up to the offer the document made
+                    # the session, and only up to what it still has queued: a
+                    # session offered slots with no work behind them leaves them
+                    # for a session that has work.
+                    queued = self.queues[name]
+                    if queued is not None and queued <= 0:
+                        continue
+                    take = min(self.offers.get(name, 0), room, LAUNCH_POOL)
+                    if queued is not None:
+                        take = min(take, queued)
+                    for _ in range(max(0, take)):
+                        self._launch(name)
+                        if queued is not None:
+                            queued = int(queued) - 1
+                            self.queues[name] = queued
+                        room -= 1
                 next_admit += ADMIT_EVERY
-            due = [at for at in self.launching if at <= self.t]
-            self.launching = [at for at in self.launching if at > self.t]
-            for _ in due:
-                self._start_worker()
+            due = [session for at, session in self.launching if at <= self.t]
+            self.launching = [
+                (at, session) for at, session in self.launching if at > self.t
+            ]
+            for session in due:
+                self._start_worker(session)
             for worker, state in list(self.workers.items()):
                 if state["state"] == "think" and float(state["until"]) <= self.t:
                     if float(state["left"]) <= 0:
-                        del self.workers[worker]
-                        continue
+                        session = self.sessions.get(str(state["session"]))
+                        if session is not None and session.hold:
+                            # A holding session's worker keeps asking: it is
+                            # holding runs the lane must work around, not a run
+                            # that ends.
+                            state["left"] = float(
+                                self.rng.choice(self.calibration.per_run)
+                            )
+                        else:
+                            del self.workers[worker]
+                            continue
                     state["left"] = float(state["left"]) - 1
                     self._new_request(worker)
             while self.gate and len(self.in_service) < self.width:
@@ -507,7 +624,10 @@ class LaneSim:
                 state["state"] = "serve"
                 self.in_service.add(worker)
                 self.open_intervals[worker] = self.ledger.admit(
-                    str(worker), now=self.t, arrived=float(state["arrived"])
+                    str(worker),
+                    session=str(state["session"]),
+                    now=self.t,
+                    arrived=float(state["arrived"]),
                 )
                 if self.t > WARM_UP_S:
                     waited = self.t - float(state["arrived"])
@@ -579,3 +699,61 @@ def simulate_fixed(
         )
         for seed in range(seeds)
     )
+
+
+def _borrowed_slots_per_session(
+    *, u: int, fair_share: int, others: Iterable[int], global_slots: int
+) -> int:
+    """One session's offer under the superseded reserve-per-session rule.
+
+    The lane used to hold ``BORROW_RESERVE`` slots for *each* working session
+    below its share, so four quiet sessions reserved 8 slots against 7 free and
+    left the session holding the queued work none. The rule has no
+    implementation left to call, because the router holds the reserve once; it
+    is stated here, where a superseded rule is kept so a check can be run
+    against it, and nowhere in the router.
+    """
+    own_room = max(0, fair_share - u)
+    reserve = sum(
+        min(max(0, fair_share - other), BORROW_RESERVE) for other in others
+    )
+    return max(0, min(global_slots, max(own_room, global_slots - reserve)))
+
+
+def per_session_reserve_offers(document: Mapping[str, Any]) -> dict[str, int]:
+    """Each session's offer under the superseded reserve-per-session rule.
+
+    Read from a published admission document's own fields -- its capacity, its
+    lane-wide slots and each session's live runs -- so the check reads the same
+    figures a reader of the document does. ``NEW_SESSION`` carries the figure
+    for a session the document does not yet name. The offers of a paused
+    document are all zero, because its lane-wide figure is.
+    """
+    capacity = int(document.get("capacity") or 0)
+    global_slots = int(document.get("worker_slots") or 0)
+    live = {
+        str(name): int((entry or {}).get("live_runs") or 0)
+        for name, entry in (document.get("sessions") or {}).items()
+    }
+    offers: dict[str, int] = {}
+    if not live:
+        offers[NEW_SESSION] = global_slots
+        return offers
+    if len(live) <= 1:
+        offers = {name: global_slots for name in live}
+    else:
+        fair_share = capacity // len(live)
+        for name, runs in live.items():
+            offers[name] = _borrowed_slots_per_session(
+                u=runs,
+                fair_share=fair_share,
+                others=[count for other, count in live.items() if other != name],
+                global_slots=global_slots,
+            )
+    offers[NEW_SESSION] = _borrowed_slots_per_session(
+        u=0,
+        fair_share=capacity // (len(live) + 1),
+        others=list(live.values()),
+        global_slots=global_slots,
+    )
+    return offers

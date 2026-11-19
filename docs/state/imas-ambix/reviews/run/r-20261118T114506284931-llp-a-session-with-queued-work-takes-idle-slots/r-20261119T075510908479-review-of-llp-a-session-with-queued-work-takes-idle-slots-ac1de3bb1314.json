@@ -1,0 +1,151 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_audit": [
+    {
+      "assertion": "offered == {\"A\": 3, \"B\": 3, \"C\": 3, \"D\": 3, \"E\": 3}",
+      "fails_if": "The reserve is held once per session again: with 7 reserved against 5 free the session holding 6 is offered 0, which is the value negative_control.log records failing at 'assert 0 >= 3'.",
+      "file": "tests/test_agent_router_worker_slots.py",
+      "line": 682,
+      "test": "test_a_session_with_the_work_is_offered_the_slots_idle_sessions_leave"
+    },
+    {
+      "assertion": "3 * 2 + 1 == 7",
+      "fails_if": "Nothing: both sides are constants evaluated at import time, so no code change can redden it.",
+      "file": "tests/test_agent_router_worker_slots.py",
+      "line": 709,
+      "test": "test_a_reserve_per_session_leaving_nothing_for_the_queued_session"
+    },
+    {
+      "assertion": "shared.tok_s >= (1 - SESSION_TOLERANCE) * single.tok_s",
+      "fails_if": "The lane resumes holding the reserve per session, which the committed counterfactual measures at 0.976 of the single-session rate against the 0.99 bound; the two rates come from separate LaneSim runs rather than from one value.",
+      "file": "tests/test_agent_lane_sim.py",
+      "line": 321,
+      "test": "test_a_session_with_queued_work_delivers_the_plateau_beside_idle_sessions"
+    },
+    {
+      "assertion": "reserved.tok_s < single.tok_s * 0.99",
+      "fails_if": "The per_session_reserve flag stops routing at the superseded offer rule, so the two arms collapse to the same rate.",
+      "file": "tests/test_agent_lane_sim.py",
+      "line": 345,
+      "test": "test_a_reserve_per_session_leaves_the_queued_session_below_the_single_rate"
+    },
+    {
+      "assertion": "reserved.tok_s / single.tok_s == pytest.approx(0.976, abs=0.01)",
+      "fails_if": "Either arm's measured rate moves more than 0.01 in ratio, including a change that makes the per-session rule cost nothing.",
+      "file": "tests/test_agent_lane_sim.py",
+      "line": 351,
+      "test": "test_a_reserve_per_session_leaves_the_queued_session_below_the_single_rate"
+    },
+    {
+      "assertion": "held[f\"quiet-{index}\"] == 1 for each of the four quiet sessions",
+      "fails_if": "The launch loop drops the 'queued <= 0: continue' guard at lane_sim.py:552-553, so every session launches from its offer and the quiet sessions grow past the one held run.",
+      "file": "tests/test_agent_lane_sim.py",
+      "line": 365,
+      "test": "test_a_session_with_nothing_queued_is_never_launched"
+    }
+  ],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1061 (_GenerationGate.admission_document -> _AdmissionLedger.snapshot with waiting_runs={entry[2] for entry in self._waiters})",
+    "imas_ambix/agent/router.py:751 (_session_figures -> _borrowed_slots, the per-session worker_slots figure the document publishes)",
+    "imas_ambix/agent/router.py:817 (_new_session_slots -> _borrowed_slots for the published new_session_worker_slots)",
+    "imas_ambix/agent/lane_sim.py:460 (LaneSim.publish_slots -> ledger.snapshot with waiting_sessions=[session for _, session in self.launching])",
+    "imas_ambix/agent/live_panel.py:113 (SESSION_SLOT_FIELDS copies active_sessions, fair_share, borrow_reserve, new_session_worker_slots and sessions from the published document)"
+  ],
+  "completed_at": "2026-11-19T08:06:15.089Z",
+  "dispatched_at": "2026-11-19T08:04:01Z",
+  "evidence_limits": "The reviewed manifest records baseline_suite: null and after_suite: null, so no pair of arms exists to difference; the run's own gate.log (revision ac1de3bb) records 123 passed, no FAILED id and EXIT=0, so the set of tests failing at the head is empty and added_failure_count is 0 with added_failure_ids empty. negative_control.log (revision 9360bac, mutation: reserve held once per session) records 2 failed and EXIT=1 against an earlier revision of the same test file, which is the guard's red arm, not a head failure.",
+  "finding_dispositions": {
+    "0": {
+      "kind": "deferred",
+      "recorded_at": "2026-11-19T08:46:40.723864+00:00",
+      "rule": "landing-defers-non-blocking-findings",
+      "run": "r-20261118T114506284931-llp-a-session-with-queued-work-takes-idle-slots"
+    },
+    "1": {
+      "kind": "deferred",
+      "recorded_at": "2026-11-19T08:46:40.723864+00:00",
+      "rule": "landing-defers-non-blocking-findings",
+      "run": "r-20261118T114506284931-llp-a-session-with-queued-work-takes-idle-slots"
+    },
+    "2": {
+      "kind": "deferred",
+      "recorded_at": "2026-11-19T08:46:40.723864+00:00",
+      "rule": "landing-defers-non-blocking-findings",
+      "run": "r-20261118T114506284931-llp-a-session-with-queued-work-takes-idle-slots"
+    },
+    "3": {
+      "kind": "deferred",
+      "recorded_at": "2026-11-19T08:46:40.723864+00:00",
+      "rule": "landing-defers-non-blocking-findings",
+      "run": "r-20261118T114506284931-llp-a-session-with-queued-work-takes-idle-slots"
+    }
+  },
+  "findings": [
+    {
+      "file": "tests/test_agent_router_worker_slots.py",
+      "line": "709",
+      "severity": "non-blocking",
+      "text": "non-blocking: 'assert 3 * 2 + 1 == 7' compares two constant expressions, so it cannot fail under any implementation and adds nothing to the negative control; the arithmetic it explains is already carried by the assertions at :710 and :714."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/s9.html",
+      "line": "86",
+      "severity": "non-blocking",
+      "text": "non-blocking: the fragment quotes '123 passed in 130.48s' for the gate block, while the gate.log it cites at revision ac1de3bb records '123 passed in 127.86s', so a reader cannot reconcile the cited run with the log it points at."
+    },
+    {
+      "file": "imas_ambix/agent/lane_sim.py",
+      "line": "373",
+      "severity": "non-blocking",
+      "text": "non-blocking: the constructor's queue argument is now ignored whenever workers is set (queues[name] is pinned to 10**9 for fixed pools), so a fixed-pool run that passed queue=N now launches beyond a bound it previously honoured; no caller in the tree passes queue= today."
+    },
+    {
+      "file": "imas_ambix/agent/lane_sim.py",
+      "line": "706",
+      "severity": "non-blocking",
+      "text": "non-blocking: per_session_reserve_offers recomputes fair_share = capacity // len(live) instead of reading the document's published fair_share, duplicating the rule at imas_ambix/agent/router.py:747 (published at :766) so the counterfactual can silently disagree with the document it reads if the router's share ever differs from a floor division of capacity."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit 9c2be60..ac1de3bb: 9360bac rewrites _borrowed_slots and adds per_session_reserve_offers, 399dc310 and c5bf50fa add and tighten the unit tests, a7e1c923 and 6c401a2c write the s9 fragment and its rates, ac1de3bb adds the 1% simulation bound; 5 files, +502/-41, nothing outside the declared scope.",
+    "done_when": "The done_when asks a capacity-16 document with five sessions holding 6,1,2,1,1 to offer the busy session at least 3 and each below-share session its room, a per-session negative control reserving 7 against 5 free, and a sessioned simulation within 1% of the single-session rate while the per-session reserve delivers less; tests/test_agent_router_worker_slots.py:653-715 and tests/test_agent_lane_sim.py:277-366 assert all three, and gate.log at ac1de3bb records 123 passed, EXIT=0.",
+    "goal": "The node goal is 'Make the lane document offer a session with queued work the slots idle sessions leave'; imas_ambix/agent/router.py:795-798 now holds BORROW_RESERVE once per lane whenever any other session is short (reserve = BORROW_RESERVE if any(short) else 0), so the session reaching the offer at router.py:751 receives global_slots - 2 instead of 0.",
+    "manifest": "The reviewed manifest states status complete, six commits, the s9 fragment and gate.log (123 passed, EXIT=0) plus negative_control.log, and records both suite arms as null, which is why this review's added-failure count rests on the head gate log alone.",
+    "write_paths": "The node declared imas_ambix/agent, tests and docs/evidence/fragments/the-local-lane-delivers-its-plateau; the five changed files (router.py, lane_sim.py, two test files, s9.html) all sit inside those paths, and the base commit 9c2be60 is the manifest's orientation_base_sha."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_router_worker_slots.py:682 and :714 and tests/test_agent_lane_sim.py:321 red when the per-session reserve is reinstated, which negative_control.log records at revision 9360bac as 'assert 0 >= 3' with EXIT=1, but tests/test_agent_router_worker_slots.py:709 is a constant comparison that guards nothing.",
+    "evidence": "gate.log's header names revision ac1de3bb, its body records '123 passed in 127.86s' and its last line is EXIT=0 over both test files, while the fragment at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s9.html:86 prints '123 passed in 130.48s' and the reviewed manifest records no baseline_suite or after_suite arm.",
+    "fit": "imas_ambix/agent/lane_sim.py:282-302 declares Session in the module's existing frozen-dataclass-with-docstring idiom and matches the prose docstrings around it, while the synthetic run id '\\0waiting-{index}' at imas_ambix/agent/router.py:611 is unusual for that module though local to a set.",
+    "goal_fidelity": "imas_ambix/agent/router.py:795-798 replaces the per-session reserve sum with one BORROW_RESERVE held while any other session is short, which is exactly the offer the goal names and the document asserted at tests/test_agent_router_worker_slots.py:682.",
+    "reuse": "The repository owned no sessioned simulation and the per-session reserve was deleted from imas_ambix/agent/router.py:795-798 by this change, so lane_sim.Session and _borrowed_slots_per_session extend a capability with no remaining owner, but imas_ambix/agent/lane_sim.py:706 recomputes fair_share = capacity // len(live) rather than reading the document's published fair_share at router.py:766 (computed at :747), duplicating the router's share arithmetic.",
+    "scope_discipline": "Every changed path in 9c2be60..ac1de3bb (imas_ambix/agent/router.py, imas_ambix/agent/lane_sim.py, tests/test_agent_router_worker_slots.py, tests/test_agent_lane_sim.py, docs/evidence/fragments/the-local-lane-delivers-its-plateau/s9.html) is inside the declared write paths, and each change traces to a clause of the plan's deliverable."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261119T075510908479-review-of-llp-a-session-with-queued-work-takes-idle-slots-ac1de3bb1314",
+  "reviewed_base_sha": "9c2be60477ecd2e50bd57d05a8009b92b39cefd9",
+  "reviewed_head_sha": "ac1de3bb1314339dc168c1ea7f9306d8239f171d",
+  "reviewed_run_id": "r-20261118T114506284931-llp-a-session-with-queued-work-takes-idle-slots",
+  "reviewed_worker_commits": [
+    "9360bac05be0e5a5aa2172986c37ce9d764f0be0",
+    "399dc31095cc496a8a3116af72117473a5414bf4",
+    "c5bf50fa7e33b262c77c20964ea93b6b732463bf",
+    "a7e1c92336b194de7c86a237769f5730ef35a4ba",
+    "6c401a2c63500aa363193254cf3f218d8b964f55",
+    "ac1de3bb1314339dc168c1ea7f9306d8239f171d"
+  ],
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 16,
+    "goal_fidelity": 18,
+    "reuse": 14,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-11-19T09:47:00+00:00",
+  "total": 100
+}

@@ -1292,6 +1292,9 @@ def generate_download_script(
     lines += [
         "",
         'mkdir -p "$MODEL_DIR" "$HF_HOME"',
+        # A completed download leaves the checkpoint read-only; reopen it for
+        # the owner so a resumed or repeated transfer can write.
+        'chmod -R u+w "$MODEL_DIR"',
         "",
         f'echo "[$(date)] Starting download for {profile.model.name}"',
         f'echo "  repo: {profile.model.hf_repo}"',
@@ -1338,7 +1341,13 @@ def generate_download_script(
         "fi",
         "",
         'du -sh "$MODEL_DIR"',
-        'echo "[$(date)] Download complete"',
+        # A finished checkpoint is hours of transfer and nothing writes to it
+        # again, so it is closed against removal: a recursive delete cannot
+        # unlink entries from a directory its owner may not write. The next
+        # download of the same slug reopens it first (see the top of the
+        # script), because a resumed transfer must write.
+        'chmod -R a-w "$MODEL_DIR"',
+        'echo "[$(date)] Download complete; $MODEL_DIR is now read-only"',
     ]
     script_body = "\n".join(lines)
     return "\n".join([*headers, "", script_body, ""])

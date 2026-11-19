@@ -1,0 +1,41 @@
+# Kimi-K3.1-Pro — Moonshot AI MoE, NVIDIA NVFP4 checkpoint
+#
+# Weights: NVIDIA's FP4-quantised build of the release, chosen over the
+# full-precision repository (moonshotai/Kimi-K3.1-Pro, 1,561 GB in BF16/F32)
+# because the target is eight cards and the full-precision weights do not fit
+# eight cards of the B300 class.
+#
+# Repository: https://huggingface.co/nvidia/Kimi-K3.1-Pro-NVFP4
+# Checkpoint: 1,605 GB stored at the pinned revision (BF16, F32, F8_E4M3 and
+#   U8 tensors), read from the repository's own metadata on 2026-11-19.
+# Native context: taken as 1,048,576 tokens, the K3 family's figure; not yet
+#   read from this checkpoint's config.
+#
+# Topology: eight cards, the count the deployment is intended for. It is
+# UNVERIFIED. No B300 node is in the site scheduler yet (it lists only the
+# 8xP100 and 8xH200 nodes), so the host memory, the per-card split, the engine
+# and its tuning have not been measured on the hardware. `agent serve` takes
+# the partition from AMBIX_AGENT_PARTITION, so no launch script names a card
+# model; set that variable to the B300 node's partition when it exists, then
+# measure load time and memory and record them here before relying on a serve.
+
+[model]
+name = "Kimi-K3.1-Pro"
+hf_repo = "nvidia/Kimi-K3.1-Pro-NVFP4"
+# A repository's default branch can move after a download, so the profile
+# names the revision the size above was read at.
+revision = "3af0462972c9cc07e5ba6e0867b44f961ce95e9b"
+served_name = "Kimi-K3.1-Pro"
+size_gb = 1605
+max_context = 1048576
+checkpoint_precision = "nvfp4"
+weights_slug = "kimi-k3-1-pro-nvfp4"
+
+[engine]
+type = "vllm"
+
+[slurm]
+gpus = 8
+cpus = 12
+port = 18813
+time_download = "48:00:00"
