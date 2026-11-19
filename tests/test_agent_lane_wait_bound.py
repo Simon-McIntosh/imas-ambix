@@ -113,10 +113,11 @@ def test_a_malformed_bound_falls_back_to_the_default(tmp_path) -> None:
 # --- the simulation: a margin the bound is needed at -----------------------
 
 #: The margin the bound is demonstrated at: sized from the fed window's own
-#: receipts it settles a pool of about 42 runs, where the bound-disabled run
-#: carries a p90 wait over 45 s and the bound holds every settled window under
-#: it. The margin is evidence, not a default.
-_SIM_MARGIN = 2.8
+#: receipts it settles a pool where the bound-disabled run carries a five-minute
+#: p90 wait over 45 s and the bound holds every settled window under it. The
+#: margin is evidence, not a default, and it is re-measured when the rule the
+#: simulation calls changes.
+_SIM_MARGIN = 2.6
 _SIM_WARM_UP_S = 1800.0
 _SIM_SETTLED_S = _SIM_WARM_UP_S + 600.0
 

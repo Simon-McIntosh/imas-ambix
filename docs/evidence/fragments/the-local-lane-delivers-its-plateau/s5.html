@@ -15,25 +15,32 @@ pool at that margin's equilibrium, so the two arms agree and the scenario does
 not arise; the run below is the calibration that reaches it, and it is the node's
 stated measure.</p>
 <p>§3 instrument calibrated from the committed fed window 04:45–06:40 UTC on
-18 November, 4.5 h, seed 0, bound 30 s, <strong>margin 2.8</strong>. Five-minute
-windows start at the end of the 1800 s warm-up; the settled set drops the first
-ten minutes after it. Command: <code>uv run --no-sync python
-margin_probe.py</code> on <code>all_debug</code>.</p>
+18 November, 4.5 h, bound 30 s, <strong>margin 2.6</strong>. Five-minute windows
+start at the end of the 1800 s warm-up; the settled set drops the first ten
+minutes after it. Sweep over the merged tree (<code>mprobe2.py</code>, every
+margin both arms, <code>all_debug</code>); the margin was re-measured after the
+lane's borrow reserve landed, because that rule moves the pool the bound sits
+on.</p>
 <table>
-<tr><th>arm</th><th>tok/s</th><th>workers</th><th>p90 max, settled windows</th><th>settled windows over 45 s</th><th>documents closed for wait</th></tr>
-<tr><td>bound 30 s</td><td>444.5</td><td>39.9</td><td>41.5 s</td><td>0</td><td>372 (all with slots 0)</td></tr>
-<tr><td>bound disabled</td><td>445.1</td><td>42.5</td><td>54.25 s</td><td>2</td><td>0</td></tr>
+<tr><th>seed</th><th>arm</th><th>p90 max, settled windows</th><th>settled windows over 45 s</th><th>documents closed for wait</th></tr>
+<tr><td>0</td><td>bound 30 s</td><td>40.0 s</td><td>0</td><td>260</td></tr>
+<tr><td>0</td><td>bound disabled</td><td>47.0 s</td><td>1</td><td>0</td></tr>
+<tr><td>1</td><td>bound 30 s</td><td>43.75 s</td><td>0</td><td>248</td></tr>
+<tr><td>1</td><td>bound disabled</td><td>54.5 s</td><td>2</td><td>0</td></tr>
+<tr><td>2</td><td>bound 30 s</td><td>40.5 s</td><td>0</td><td>238</td></tr>
+<tr><td>2</td><td>bound disabled</td><td>53.75 s</td><td>1</td><td>0</td></tr>
 </table>
-<p>The same margin on seeds 1 and 2: bound-disabled p90 max 58.25 s and 44.5 s,
-bound-enabled settled p90 max 48.25 s and 42.25 s. The margin is the evidence
-figure, not a default; the pass run above is seed 0.</p>
+<p>Every seed carries the bound-disabled arm over 45 s and the bound-enabled arm
+under it in every settled window; the test asserts seed 0, which is the run the
+plan's condition is written against. The margin is the evidence figure, not a
+default.</p>
 
 <h2>Think time dropping to a third at two hours (measured, not a pass condition)</h2>
-<p>Default margin 1.5, early-window calibration (think 17.9 s, mean), think time
-divided by three at 7200 s. Both arms carry the same worst settled window,
-35.25 s, because a pool already at its published capacity has no slot left for
-the bound to close: the dispatcher admits the lesser of the published slots and
-the published capacity less the workers held, and the capacity caps the pool.</p>
+<p>Default margin 1.5, think time divided by three at 7200 s, both arms run with
+the bound on and off: each carries the same worst settled window, 16.0 s, and
+neither publishes a document closed for the wait. The bound has nothing to close
+here because the lane settles under it in both arms, so this run cannot separate
+the two and is recorded as a measurement rather than as a pass condition.</p>
 
 <h2>Unit tests</h2>
 <p>The document fields at the bound, just under it and just over it, a paused
