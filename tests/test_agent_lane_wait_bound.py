@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from imas_ambix.agent.lane_sim import LaneSim, calibrate_rows, read_receipts
-from imas_ambix.agent.lane_utilisation import percentile_or_none
 from imas_ambix.agent.router import (
     DEFAULT_WAIT_BOUND_SECONDS,
     _AdmissionLedger,
@@ -135,12 +135,25 @@ def _simulated(bound):
     return sim
 
 
+def _rank_p90(waits):
+    """The window percentile, cut independently of the code under test.
+
+    The guard decides closure with the shared estimator, so a window measured
+    by that same function would move with a regression in it; the assertion
+    below cuts its own nearest-rank figure instead.
+    """
+    ordered = sorted(waits)
+    if not ordered:
+        return None
+    return ordered[int(0.9 * (len(ordered) - 1))]
+
+
 def _window_p90s(sim):
     windows = []
     lo = _SIM_WARM_UP_S
     while lo + 300.0 <= sim.end:
         waits = [wait for at, wait in sim.wait_events if lo <= at < lo + 300.0]
-        windows.append((lo, percentile_or_none(waits, 0.9)))
+        windows.append((lo, _rank_p90(waits)))
         lo += 300.0
     return windows
 
@@ -164,3 +177,22 @@ def test_the_bound_holds_a_high_margin_lane_under_committed_wait() -> None:
     assert closed
     assert all(d["worker_slots"] == 0 for d in closed)
     assert not [d for d in unbounded.documents if d["worker_slots_reason"] is not None]
+
+
+def test_the_gate_logs_its_settings_once_per_control_file_read(
+    tmp_path, caplog
+) -> None:
+    """A re-read that finds the settings unchanged does not log them again."""
+    config = tmp_path / "generation-gate.json"
+    config.write_text('{"width": 12}', encoding="utf-8")
+    gate = _GenerationGate(config)
+    with caplog.at_level(logging.INFO, logger="imas_ambix.agent.router"):
+        gate.settings()
+        gate._next_config_refresh_at = 0.0
+        gate.settings()
+    logged = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("generation gate config")
+    ]
+    assert len(logged) == 1

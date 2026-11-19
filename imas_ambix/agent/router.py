@@ -1165,6 +1165,7 @@ class _GenerationGate:
                 settings.wait_bound_seconds,
                 settings.reason,
             )
+            self._last_logged_settings = settings
         return settings
 
     def _engine_payload(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
