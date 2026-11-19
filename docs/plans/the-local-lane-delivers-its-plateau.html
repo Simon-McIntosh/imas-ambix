@@ -25,7 +25,7 @@
   <title>The Local Lane Delivers Its Plateau | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="26">
+<meta name="plan-version" content="27">
 <meta name="plan-modified" content="2026-11-19">
 </head>
 <body>
@@ -158,7 +158,10 @@
     <div class="r-comment-body"><p>Independent review of r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots at head f31419033df7b7f9c326e764f0d8536d782a94cb scores goal_fidelity 18, evidence 11, scope_discipline 12, durability 12, fit 15, reuse 5 (total 73), with one blocking finding (router.py:1154 drops the _last_logged_settings assignment so the gate logs its settings on every poll) and four non-blocking findings.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261119T094036551550-review-of-llp-a-long-gate-wait-closes-the-slots-cd8ea00a8303" data-who="reckon-build" data-when="2026-11-19T09:42:11.141Z">
-    <div class="r-comment-body"><p>independent review of the three commits the run gained since its prior review (94d0c850, 320c4237, cd8ea00a) against base f3141903; the record&#x27;s parsed scores are goal_fidelity 18, evidence 16, scope_discipline 19, durability 15, fit 17, reuse 20, with two non-blocking findings and zero added failures</p></div>
+    <div class="r-comment-body"><p>independent review of the three commits the run gained since its prior review (94d0c850, 320c4237, cd8ea00a) against base f3141903; the record's parsed scores are goal_fidelity 18, evidence 16, scope_discipline 19, durability 15, fit 17, reuse 20, with two non-blocking findings and zero added failures</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots" data-who="reckon-build" data-when="2026-11-19T05:28:03Z">
+    <div class="r-comment-body"><p>The admission ledger publishes gate_wait_p90_seconds over the last five minutes and zeroes worker_slots while the 30 s bound is exceeded, naming worker_slots_reason as paused or gate_wait; in the calibrated simulation at margin 2.8 the bound holds every settled five-minute window at or below 41.5 s while the bound-disabled arm reaches 54.25 s, the think-time-drop run at the default margin measured 35.25 s in both arms.</p></div>
 </div>
 </section>
 </main>
