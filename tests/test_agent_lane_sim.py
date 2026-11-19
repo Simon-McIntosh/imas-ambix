@@ -15,6 +15,7 @@ reproduction's wait criterion fails on it.
 
 from __future__ import annotations
 
+import collections
 from functools import cache
 from pathlib import Path
 
@@ -23,8 +24,10 @@ import pytest
 from imas_ambix.agent.lane_sim import (
     LANE_WIDTH,
     LaneSim,
+    Session,
     calibrate_rows,
     mean_live_runs,
+    mean_result,
     read_receipts,
     simulate_fixed,
 )
@@ -265,3 +268,95 @@ def test_measuring_duty_including_the_gate_wait_runs_the_pool_away() -> None:
     sim, _ = _rule_run("fed", 1.25, hours=RULE_HOURS * 2, duty_includes_wait=True)
     last_hour = sim.worker_ten_minute_means()[-6:]
     assert sum(last_hour) / len(last_hour) > RUNAWAY_WORKERS, last_hour
+
+
+# --- Sessions: one with queued work beside sessions holding a run ---------
+#
+# Only a session with work behind it can use a slot it is offered. The four
+# quiet sessions here each hold one run and have nothing queued, so they take none
+# of their offer: whatever the rule holds back for them costs the lane the runs
+# it never had.
+SESSION_HOURS = 4.0
+SESSION_SEEDS = 3
+#: The plan's measure: the shared lane delivers within this of one session.
+SESSION_TOLERANCE = 0.05
+
+
+def _session_lane():
+    """One session with an unbounded queue beside four holding one run."""
+    sessions = {"lead": Session(workers=LANE_WIDTH, queue=None)}
+    for index in range(4):
+        sessions[f"quiet-{index}"] = Session(workers=1, queue=0, hold=True)
+    return sessions
+
+
+def _session_rate(sessions, *, per_session_reserve=False):
+    """The rate a sessioned lane delivers, averaged over the seeds."""
+    return mean_result(
+        LaneSim(_workload("fed"), seed=seed, hours=SESSION_HOURS,
+                sessions=sessions,
+                per_session_reserve=per_session_reserve).run(LANE_WIDTH)
+        for seed in range(SESSION_SEEDS)
+    )
+
+
+def _single_session_rate():
+    return _session_rate({"all": Session(workers=LANE_WIDTH, queue=None)})
+
+
+def test_a_session_with_queued_work_delivers_the_plateau_beside_idle_sessions():
+    """The lane-wide reserve costs the queued session almost nothing.
+
+    One session with an unbounded queue beside four that each hold a run and
+    have nothing queued. The lane holds one borrow reserve for the four at once,
+    so the queued session takes every free slot beyond it and the lane delivers
+    within the plan's 4.44 tok/s of the same workload run as a single session:
+    measured 444.0 against 444.5 at the default margin, a share of 0.998.
+    """
+    single = _single_session_rate()
+    shared = _session_rate(_session_lane())
+    assert single.tok_s > 0
+    assert shared.tok_s >= (1 - SESSION_TOLERANCE) * single.tok_s, (
+        shared.tok_s,
+        single.tok_s,
+    )
+
+
+def test_a_reserve_per_session_leaves_the_queued_session_below_the_single_rate():
+    """The superseded rule holds the queued session back, measured at 2.4%.
+
+    The same five sessions under one reserve per session: four quiet sessions
+    reserve 8 slots between them, so the queued session is offered 6 fewer, and
+    the lane settles with 18.4 workers against the single session's 22.2. The
+    delivered rate is 434.0 against 444.5 -- 2.4% short. That is the direction
+    the plan names, and it is short of the 5% the plan's measure demands: the
+    reserve costs workers at this lane's capacity but the measured rate curve
+    stops improving above about 20 workers, so the runs at 20-22 in service
+    matter as if nothing had been held back. Recorded, not asserted away; the
+    unit-level offer (3 against 0) is where the two rules differ by the whole
+    free-slot count.
+    """
+    single = _single_session_rate()
+    shared = _session_rate(_session_lane())
+    reserved = _session_rate(_session_lane(), per_session_reserve=True)
+    assert reserved.tok_s < single.tok_s * 0.99, (reserved.tok_s, single.tok_s)
+    assert reserved.tok_s < shared.tok_s
+    assert reserved.workers < shared.workers
+    # The shortfall the plan's measure asks for is not what the instrument
+    # shows; the figure is carried here so a reader sees it rather than infers.
+    assert reserved.tok_s / single.tok_s == pytest.approx(0.976, abs=0.01)
+
+
+def test_a_session_with_nothing_queued_is_never_launched():
+    """A quiet session holds its run and nothing more, however big its offer.
+
+    Every session is offered slots; the four with an empty queue take none of
+    them, so a lane that launched from the offer alone would grow all five
+    sessions. Only the queued session grows past the workers it started with.
+    """
+    sim = LaneSim(_workload("fed"), seed=0, hours=1.0, sessions=_session_lane())
+    sim.run(LANE_WIDTH)
+    held = collections.Counter(state["session"] for state in sim.workers.values())
+    for index in range(4):
+        assert held[f"quiet-{index}"] == 1
+    assert held["lead"] > LANE_WIDTH

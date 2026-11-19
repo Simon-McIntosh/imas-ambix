@@ -301,9 +301,11 @@ WORKING_HORIZON_SECONDS = 180.0
 # working without a session identity still shares the lane with the sessions
 # that have one.
 UNATTRIBUTED_SESSION = "unattributed"
-# How many free slots a session at or above its share must leave for each other
-# working session below its share, so a session that falls behind recovers as
-# the borrower's runs finish.
+# How many free slots the lane holds back in total, so a session that falls
+# behind recovers as the borrower's runs finish. It is held once across the lane
+# however many sessions are below their share: held once per such session, four
+# quiet sessions reserved 8 slots against 7 free on 2026-11-18 and left the
+# session holding 285 queued requests offered none.
 BORROW_RESERVE = 2
 # How long a session's engine pin stands after its last request. It is the same
 # horizon the per-session share uses, so a pin and a session's claim on the lane
@@ -497,6 +499,7 @@ class _AdmissionLedger:
         margin: float = DEFAULT_MARGIN,
         waiting_runs: Iterable[str] = (),
         waiting_count: int = 0,
+        waiting_sessions: Iterable[str] = (),
         duty_includes_wait: bool = False,
         claim_seconds: float | None = None,
     ) -> dict[str, object]:
@@ -516,7 +519,10 @@ class _AdmissionLedger:
         ``waiting_count`` is the same claim for runs whose identity the caller
         does not hold -- a simulation's admitted workers that have not started
         asking yet -- and only the count can matter, because such a run holds a
-        slot and offers the load nothing to the record.
+        slot and offers the load nothing to the record. ``waiting_sessions``
+        names the sessions of those unnamed runs, when the caller knows them, so
+        the per-session block counts the same runs ``waiting_count`` adds to the
+        lane-wide figure.
         ``duty_includes_wait`` states the failing rule the simulation's negative
         control measures itself against; the lane never sets it.
 
@@ -585,9 +591,26 @@ class _AdmissionLedger:
             if interval.run_id in live_runs_seen
         ]
         # A run whose only request is still at the gate has no interval, so the
-        # gate's queue is the only place it can be counted. It claims a slot but
-        # names no session here, and the sessions below are the runs holding
-        # intervals, so the two never double count the same run.
+        # gate's queue is the only place it can be counted. It claims a slot,
+        # and the per-session block has to count it too or the two blocks
+        # disagree about which runs are live: it is grouped under the session
+        # its last admitted request declared. A run the record has never seen
+        # admitted names no session, and only the lane-wide count can hold it.
+        known_session = {
+            interval.run_id: interval.session
+            for interval in self._intervals
+            if interval.run_id
+        }
+        for run in {run for run in waiting_runs if run} - live_runs_seen:
+            live_sessions.setdefault(
+                known_session.get(run) or UNATTRIBUTED_SESSION, set()).add(run)
+        # ``waiting_count`` is the same claim for runs the caller cannot name --
+        # a launched worker with no request yet -- so its sessions, when the
+        # caller knows them, are the sessions those runs belong to.
+        for index, session in enumerate(waiting_sessions):
+            live_sessions.setdefault(session or UNATTRIBUTED_SESSION, set()).add(
+                f"\0waiting-{index}"
+            )
         live_run_ids = live_runs_seen
         live_runs = (
             len(live_run_ids)
@@ -759,16 +782,19 @@ class _AdmissionLedger:
         """The slots one session is offered under a fair share.
 
         A session below its share may grow to it while slots are free. A session
-        at or above its share may borrow free slots beyond it, but leaves each
-        other working session that is below its share room to add
-        ``BORROW_RESERVE`` workers at once, so a session that falls behind
-        recovers its share as the borrower's runs finish. Nothing is preempted,
-        so the offer is bounded by the global slot count and by zero.
+        at or above its share may borrow free slots beyond it, but the lane
+        holds back one borrow reserve in total for the sessions below their
+        share -- held once however many of them there are, not once each.
+        Nothing is preempted, so the offer is bounded by the lane-wide slot
+        count and by zero.
         """
+        # A session's own room already covers its growth to its share, so the
+        # reserve only has to stop a borrower taking the free slots before that
+        # room is used. Once every other session is at or above its share there
+        # is nobody to hold it back for, and the borrower takes the lot.
+        short = [max(0, fair_share - other) for other in others]
+        reserve = BORROW_RESERVE if any(short) else 0
         own_room = max(0, fair_share - u)
-        reserve = sum(
-            min(max(0, fair_share - other), BORROW_RESERVE) for other in others
-        )
         return max(0, min(global_slots, max(own_room, global_slots - reserve)))
 
     def _new_session_slots(
