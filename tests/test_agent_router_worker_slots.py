@@ -679,7 +679,9 @@ def test_a_session_with_the_work_is_offered_the_slots_idle_sessions_leave() -> N
     offered = {
         name: entry["worker_slots"] for name, entry in document["sessions"].items()
     }
-    assert offered["A"] >= 3
+    assert offered == {"A": 3, "B": 3, "C": 3, "D": 3, "E": 3}, offered
+    # B, D and E need 2 runs to reach the share and C needs 1; each is offered
+    # 3, so the reserve holds none of them below its room.
     for name, runs in (("B", 1), ("C", 2), ("D", 1), ("E", 1)):
         assert offered[name] >= 3 - runs, (name, offered)
 

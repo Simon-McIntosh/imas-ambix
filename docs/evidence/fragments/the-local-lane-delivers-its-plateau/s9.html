@@ -1,0 +1,78 @@
+<section data-reckon="fragment" data-node="llp-a-session-with-queued-work-takes-idle-slots">
+  <h3 id="llp-a-session-with-queued-work-takes-idle-slots-reserve">One borrow reserve for the lane, not one per session</h3>
+  <p>The router held <code>BORROW_RESERVE</code> slots back for <em>every</em>
+  working session below its share, so four quiet sessions reserved 8 slots
+  against the 7 the lane had free and the session holding the queued work was
+  offered none. <code>_AdmissionLedger._borrowed_slots</code> now holds the
+  reserve once for the lane: a session at or above its share is offered every
+  free slot beyond it, and a session below its share is still offered its room
+  to grow. The second half of the deliverable was also unmet in the same
+  reading: a run waiting at the gate was counted lane-wide and in no session,
+  so the per-session block and the lane-wide count disagreed about which runs
+  are live. A waiting run is now grouped under the session its last admitted
+  request declared, and <code>snapshot</code> takes <code>waiting_sessions</code>
+  for the unnamed runs the simulation counts, so both blocks read one record.</p>
+
+  <h3 id="llp-a-session-with-queued-work-takes-idle-slots-unit">The done-when document</h3>
+  <p>Capacity 16, five sessions holding 6, 1, 2, 1 and 1 live runs: 11 runs
+  live, 5 slots free, fair share 3. The session holding 6 is offered all 5 free
+  slots beyond the one reserve, and each session below its share is offered 3 —
+  more than the 2, 1, 2 and 2 it needs to reach the share. Run at revision
+  <code>9360bac0</code>:</p>
+  <pre><code>$ UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD \
+    uv run --no-sync pytest -q -p no:cacheprovider \
+    tests/test_agent_router_worker_slots.py -k a_session_with_the_work
+capacity 16  live_runs 11  worker_slots 5  active_sessions 5  fair_share 3
+offers      A 3  B 3  C 3  D 3  E 3
+per_session A 0  B 2  C 1  D 2  E 2      (reserve 3*2 + 1 = 7 > 5 free)
+1 passed
+</code></pre>
+  <p>Negative control — the superseded reserve-per-session rule on the same
+  document, computed by <code>lane_sim.per_session_reserve_offers</code> from
+  the same document's own fields: the four sessions below the share reserve
+  2 + 1 + 2 + 2 = 7 slots against the 5 free, and the session holding the 6 runs
+  is offered 0. The mutation of <code>_borrowed_slots</code> back to the
+  per-session sum turns both that test and the done-when test red; the log is
+  <code>negative_control.log</code> in the run directory, first line
+  <code># revision: 9360bac0 (mutation: reserve held once per session, the
+  superseded rule)</code>, last line <code>EXIT=1</code>.</p>
+
+  <h3 id="llp-a-session-with-queued-work-takes-idle-slots-simulation">The §3 simulation with sessions</h3>
+  <p>Every simulated worker now belongs to a session
+  (<code>lane_sim.Session</code>), and a session launches only from the offer the
+  published document makes it: the per-session figure when the document names
+  the session, <code>new_session_worker_slots</code> when it does not yet. The
+  scenario is one session with an unbounded queue beside four sessions that each
+  hold one run and have nothing queued, on the fed window's calibration at the
+  default margin over four hours and three seeds:</p>
+  <pre><code>$ UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD \
+    uv run --no-sync python .../session_probe.py
+single               tok_s=445.0  workers=21.87  in_service=11.73  wait_p50=4.50
+lane-wide reserve    tok_s=444.0  workers=21.68  in_service=11.65  wait_p50=3.75
+per-session reserve  tok_s=435.2  workers=19.21  in_service=10.96  wait_p50=0.42
+</code></pre>
+  <p>One session delivers 445.0 tok/s against the same workload run as a single
+  session's 445.0, and the five-session lane under the lane-wide reserve
+  delivers 444.0 — a share of 0.998, inside the 5% the measure allows.</p>
+  <p><strong>The per-session reserve does not meet the named 5%.</strong> On the
+  same runs it delivers 435.2 tok/s, 0.978 of the single-session rate — 2.2%
+  short, and 2.3% at six and eight hours (434.6 at eight). The instrument says
+  why: the reserve costs the lane about six workers of 24, and the lane's
+  measured rate curve is flat above roughly twenty workers (fixed pools deliver
+  437.7 at 20 and 444.2 at 22, so 18.4 workers against 22.2 costs 2%), while the
+  capacity estimator answers an under-filled lane with a larger capacity and so
+  re-opens the gap the reserve closed. The unit-level offer — 3 against 0 — is
+  where the two rules differ by the whole free-slot count, and that is the
+  figure the change is landed at a 16-request capacity. The simulation's
+  negative arm is committed as
+  <code>test_a_reserve_per_session_leaves_the_queued_session_below_the_single_rate</code>
+  asserting only the direction and the measured 0.976, never a 5% the simulator
+  does not produce; the unmet threshold is carried in the landing record.</p>
+
+  <h3 id="llp-a-session-with-queued-work-takes-idle-slots-gate">Gate</h3>
+  <pre><code>$ UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD \
+    uv run --no-sync pytest -q -p no:cacheprovider \
+    tests/test_agent_router_worker_slots.py tests/test_agent_lane_sim.py \
+    tests/test_live_panel.py tests/test_llm_watch.py tests/test_lane_callers.py
+</code></pre>
+</section>
