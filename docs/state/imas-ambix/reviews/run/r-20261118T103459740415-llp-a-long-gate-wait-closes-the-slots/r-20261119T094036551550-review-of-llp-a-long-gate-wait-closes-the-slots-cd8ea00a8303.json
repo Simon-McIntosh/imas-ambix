@@ -1,0 +1,140 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest declares no baseline_suite or after_suite keys, and the run's own revision-keyed gate logs supply the pair: logs/s5-gate.log at f3141903 reports 6 passed with no failing id, and logs/repair-gate.log at cd8ea00a reports 87 passed with EXIT=0, so the head arm adds no failing id.",
+  "assertion_review": [
+    {
+      "conditions_for_failure": "Removing self._last_logged_settings = settings at imas_ambix/agent/router.py:1168 makes the second settings() call log again, so len(logged) reads 2 and line 198 fails; logs/repair-negative-control.log shows exactly that red on a copy of cd8ea00a with the assignment removed.",
+      "independence": "The count is over the logger's own records rather than a value the test hands to the gate; the only thing supplied is the control file's JSON, an input rather than the expected outcome.",
+      "location": "tests/test_agent_lane_wait_bound.py:182-198"
+    },
+    {
+      "conditions_for_failure": "Dropping wait_bound_seconds from the published router_generation_gate document reddens the exact-dict comparison at line 575; the key was added to the expectation because cd8ea00a publishes the new field.",
+      "independence": "The expected dict is written out in the test and the value 30.0 is the production default, so a production change to the key or its value reddens it.",
+      "location": "tests/test_agent_router_gate.py:579-592"
+    },
+    {
+      "conditions_for_failure": "A bound that stops closing slots leaves the settled assertion at line 174 false and the closed list at lines 177-179 empty, so the arm fails; the unbounded arm at line 169 crosses 45 s only because the closure is what reddens the bounded run, so disabling the closure reddens line 169 as well.",
+      "independence": "The window percentile is cut by _rank_p90 at line 138, a separate copy of the nearest-rank rule, so an estimator regression moves production only and the assertion still fails.",
+      "location": "tests/test_agent_lane_wait_bound.py:161-179"
+    },
+    {
+      "conditions_for_failure": "The test now passes wait_bound_seconds=None so the runaway measured is the unbound rule's; with the bound at its default the closure holds the pool and the last-hour mean asked for at line 276 falls below RUNAWAY_WORKERS, which is the failure the head gate's passing run rules out.",
+      "independence": "The threshold RUNAWAY_WORKERS is a module constant rather than a figure the test supplies to the simulation, so the assertion still fails if the rule stops running away in the unbounded configuration it names.",
+      "location": "tests/test_agent_lane_sim.py:257-275"
+    }
+  ],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1038 (_GenerationGate.acquire reading settings())",
+    "imas_ambix/agent/router.py:624 (_AdmissionLedger.snapshot)",
+    "imas_ambix/agent/lane_sim.py:546-548 (LaneSim.run through _quantile)",
+    "imas_ambix/agent/lane_sim.py:437 (simulation slot consumer)",
+    "imas_ambix/agent/lane.py:1235 (lane-document merge at head)"
+  ],
+  "completed_at": "2026-11-19T09:42:11.141Z",
+  "dispatched_at": "2026-11-19T09:41:54Z",
+  "evidence_limits": [
+    "The reviewed manifest carries no baseline_suite or after_suite keys, so the added-failure count is taken from the run's own two revision-keyed gate logs rather than from declared arms.",
+    "logs/margin-seeds.log:18 records the margin-2.8 seed-1 bound arm at 48.25 s, so the bound holds every settled window under 45 s on the reported seed 0 only; the fragment discloses this beside its pass table.",
+    "The estimator unification is verified by a grep count in the negative-control log, not by a test.",
+    "No suite or mutation rerun was performed during this bounded read-only review; the reviewed negative-control log is read as recorded."
+  ],
+  "findings": [
+    {
+      "file": "imas_ambix/agent/lane_utilisation.py",
+      "line": "495",
+      "severity": "non-blocking",
+      "text": "non-blocking: the docstring added by 320c4237 says an evidence script cuts the simulation's windows with percentile_or_none, but at cd8ea00a the only callers are imas_ambix/agent/router.py:624 and imas_ambix/agent/lane_sim.py:159 -- the test that did cut windows with it moved to its own _rank_p90 in the same commit -- so the docstring names a consumer the repository does not have."
+    },
+    {
+      "file": "imas_ambix/agent/lane_sim.py",
+      "line": "153",
+      "severity": "non-blocking",
+      "text": "non-blocking: the estimator unification has no test that reddens if a second nearest-rank body returns to the lane; its only check is the grep count in logs/repair-negative-control.log (2 reverted, 1 at head), so the reuse repair can be undone silently."
+    }
+  ],
+  "incremental_commits": [
+    "94d0c850f8a399acb04423d7c313b49c73d19142",
+    "320c4237772cf418580fb3b3bc2dc38d068c89e6",
+    "cd8ea00a83035effd0de9b8317f753819b224f30"
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "read all three gained commits f3141903..cd8ea00 one by one: 94d0c850 restores the missing self._last_logged_settings assignment plus its test, 320c4237 makes lane_sim._quantile defer to percentile_or_none and deletes the unconsumed minute_samples and think_draws, cd8ea00a carries the new wait_bound_seconds document key through two existing contract tests.",
+    "done_when": "the dispatched done_when names a think-time-drop workload with a bound-disabled arm over 45 s, but plan-main.html:89 states the high-margin run and demotes the think-drop run to a measured result; tests/test_agent_lane_wait_bound.py:161-179 asserts the plan's arm pair at margin 2.8 and ran inside the five-file gate recorded at 87 passed.",
+    "goal": "the reviewed node's goal is to close the published worker slots while the windowed gate wait exceeds its bound; the gained commits keep that path standing and repair it, with imas_ambix/agent/router.py:1168 re-arming the settings-change guard at router.py:1154 so the closure at router.py:633-660 runs without an unimplied per-poll settings log.",
+    "manifest": "read; it records commits 4f148397, f3141903, 94d0c850, 320c4237 and cd8ea00a, the five-file gate at 87 passed in logs/repair-gate.log, the repair negative control, and carries no baseline_suite or after_suite keys.",
+    "write_paths": "the declared set is imas_ambix/agent, tests and docs/evidence/fragments/the-local-lane-delivers-its-plateau; the three gained commits touch imas_ambix/agent/lane_sim.py, imas_ambix/agent/lane_utilisation.py, imas_ambix/agent/router.py, tests/test_agent_lane_sim.py, tests/test_agent_lane_wait_bound.py, tests/test_agent_router_gate.py and the s5.html fragment, every one inside it."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_lane_wait_bound.py:198 reddens when the assignment at imas_ambix/agent/router.py:1168 is removed, as logs/repair-negative-control.log shows with 2 == 1, but the estimator unification at imas_ambix/agent/lane_sim.py:153 has no test and is checked only by a grep count.",
+    "evidence": "logs/repair-gate.log records 87 passed with EXIT=0 at revision cd8ea00a and the fragment table reconciles with logs/margin-seeds.log lines 8-10, but logs/margin-seeds.log:18 records the margin-2.8 seed-1 bound arm at 48.25 s against the 45 s the fragment calls its pass figure.",
+    "fit": "tests/test_agent_lane_wait_bound.py:138-198 follows the file's own idiom of untyped module helpers and a temporary control file, but imas_ambix/agent/lane_utilisation.py:495 names a consumer that does not exist.",
+    "goal_fidelity": "imas_ambix/agent/router.py:1154-1168 restores the guard that makes the settings log a change signal while the closure at router.py:633-660 keeps zeroing worker_slots and naming the control file's bound, so the goal's mechanism stands at the head.",
+    "reuse": "imas_ambix/agent/lane_sim.py:153 now defers to imas_ambix/agent/lane_utilisation.py:489, so the lane holds one nearest-rank estimator and the test's copy at tests/test_agent_lane_wait_bound.py:138 is an independent oracle rather than a second owner.",
+    "scope_discipline": "every path in f3141903..cd8ea00 is inside the declared write paths and the deletions at imas_ambix/agent/lane_sim.py:355-361 answer a recorded review finding rather than adding scope."
+  },
+  "project": "imas-ambix",
+  "raw_text": "REVIEWED_BASE_SHA: f31419033df7b7f9c326e764f0d8536d782a94cb\nREVIEWED_HEAD_SHA: cd8ea00a83035effd0de9b8317f753819b224f30\nVERDICT goal: the reviewed node's goal is to close the published worker slots while the windowed gate wait exceeds its bound; the gained commits keep that path standing and repair it, with imas_ambix/agent/router.py:1168 re-arming the settings-change guard at router.py:1154 so the closure at router.py:633-660 runs without an unimplied per-poll settings log.\nVERDICT done_when: the dispatched done_when names a think-time-drop workload with a bound-disabled arm over 45 s, but the plan's own \u00a75 line (plan-main.html:89, the semantic authority) states the high-margin run and demotes the think-drop run to a measured result; tests/test_agent_lane_wait_bound.py:161-179 asserts the plan's arm pair at margin 2.8 (unbounded maximum over 45 s, settled bounded maximum under 45 s, closed documents zeroed and named as gate_wait) and ran inside the five-file gate recorded at 87 passed in logs/repair-gate.log.\nVERDICT write_paths: the declared set is imas_ambix/agent, tests and docs/evidence/fragments/the-local-lane-delivers-its-plateau; the three gained commits touch imas_ambix/agent/lane_sim.py, imas_ambix/agent/lane_utilisation.py, imas_ambix/agent/router.py, tests/test_agent_lane_sim.py, tests/test_agent_lane_wait_bound.py, tests/test_agent_router_gate.py and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s5.html, every one inside it.\nVERDICT manifest: read; it records commits 4f148397, f3141903, 94d0c850, 320c4237 and cd8ea00a, the five-file gate at 87 passed in logs/repair-gate.log, the repair negative control, and carries no baseline_suite or after_suite keys, so the added-failure count is derived from the run's own revision-keyed gate logs.\nVERDICT diff: read all three gained commits f3141903..cd8ea00 one by one: 94d0c850 restores the missing self._last_logged_settings assignment plus its test, 320c4237 makes lane_sim._quantile defer to percentile_or_none and deletes the unconsumed minute_samples and think_draws, cd8ea00a carries the new wait_bound_seconds document key through two existing contract tests.\nCALL_SITES: imas_ambix/agent/router.py:1038 (_GenerationGate.acquire reading settings()), imas_ambix/agent/router.py:624 (_AdmissionLedger.snapshot), imas_ambix/agent/lane_sim.py:546-548 (LaneSim.run through _quantile), imas_ambix/agent/lane_sim.py:437 (simulation slot consumer), imas_ambix/agent/lane.py:1235 (lane-document merge at head)\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/router.py:1154-1168 restores the guard that makes the settings log a change signal while the closure at router.py:633-660 still zeroes worker_slots and names the reason, so the goal's mechanism stands at the head.\nSCORE evidence: 16\nJUSTIFICATION evidence: /home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots/logs/repair-gate.log records 87 passed with EXIT=0 at revision cd8ea00a, and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s5.html:21-27 reconciles with logs/margin-seeds.log lines 8-10, but logs/margin-seeds.log:18 records the margin-2.8 seed-1 bound arm at 48.25 s, over the 45 s the fragment calls its pass figure.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in f3141903..cd8ea00 is inside the declared write paths, and the deletions at imas_ambix/agent/lane_sim.py:355-361 answer a recorded review finding rather than adding scope.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_agent_lane_wait_bound.py:198 reddens when the assignment at imas_ambix/agent/router.py:1168 is removed, as logs/repair-negative-control.log shows with 2 == 1, but the estimator unification at imas_ambix/agent/lane_sim.py:153 has no test and is checked only by a grep count.\nSCORE fit: 17\nJUSTIFICATION fit: tests/test_agent_lane_wait_bound.py:138-198 follows the file's own idiom of untyped module helpers and a temporary control file, but imas_ambix/agent/lane_utilisation.py:495 names a consumer that does not exist.\nSCORE reuse: 20\nJUSTIFICATION reuse: imas_ambix/agent/lane_sim.py:153 now defers to imas_ambix/agent/lane_utilisation.py:489, so the lane holds one nearest-rank estimator and the test's copy at tests/test_agent_lane_wait_bound.py:138 is an independent oracle rather than a second owner.\nFINDING imas_ambix/agent/lane_utilisation.py:495 non-blocking: the docstring added by 320c4237 says an evidence script cuts the simulation's windows with percentile_or_none, but at cd8ea00a the only callers are imas_ambix/agent/router.py:624 and imas_ambix/agent/lane_sim.py:159 -- the test that did cut windows with it moved to its own _rank_p90 in the same commit -- so the docstring names a consumer the repository does not have.\nFINDING imas_ambix/agent/lane_sim.py:153 non-blocking: the estimator unification has no test that reddens if a second nearest-rank body returns to the lane; its only check is the grep count in logs/repair-negative-control.log (2 reverted, 1 at head), so the reuse repair can be undone silently.\n",
+  "reuse_search": {
+    "capabilities": [
+      "nearest-rank percentile over a list of waits",
+      "gate-slot closure with one reason field",
+      "per-minute and per-request simulation instrumentation"
+    ],
+    "judgement": "The gained commits resolve the earlier reuse finding: lane_sim._quantile now delegates to lane_utilisation.percentile_or_none, so one estimator serves the gate, the simulation and the tests. The test-local _rank_p90 duplicates the rule deliberately as an independent oracle, which is the independence the parser's assertion_review demands. The removed minute_samples and think_draws had no reader anywhere in imas_ambix or tests.",
+    "owners_opened": [
+      "imas_ambix/agent/lane_utilisation.py:489-505",
+      "imas_ambix/agent/lane_sim.py:153-161"
+    ],
+    "searched": "Capability search over imas_ambix for nearest-rank percentile bodies found lane_utilisation.percentile_or_none, lane_sim._quantile (now a wrapper), and unrelated quantile owners in bench_report, receipt_bins, data/probe and calibration/signals, none of which the gained commits touch or fork."
+  },
+  "review_run_id": "r-20261119T094036551550-review-of-llp-a-long-gate-wait-closes-the-slots-cd8ea00a8303",
+  "reviewed_base_sha": "f31419033df7b7f9c326e764f0d8536d782a94cb",
+  "reviewed_head_sha": "cd8ea00a83035effd0de9b8317f753819b224f30",
+  "reviewed_run_id": "r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots",
+  "reviewed_worker_commits": [
+    "4f1483976052d4639cd302a0d9a302e8b30a7133",
+    "f31419033df7b7f9c326e764f0d8536d782a94cb",
+    "94d0c850f8a399acb04423d7c313b49c73d19142",
+    "320c4237772cf418580fb3b3bc2dc38d068c89e6",
+    "cd8ea00a83035effd0de9b8317f753819b224f30"
+  ],
+  "scope_provenance": "The run was reviewed once before at head f31419033df7b7f9c326e764f0d8536d782a94cb (record .at-f31419033df7b7f9c326e764f0d8536d782a94cb.json), so this review reads only the three commits gained since: 94d0c850f8a399acb04423d7c313b49c73d19142, 320c4237772cf418580fb3b3bc2dc38d068c89e6 and cd8ea00a83035effd0de9b8317f753819b224f30, over seven paths inside the node's declared write paths.",
+  "scores": {
+    "durability": 15,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "suite_evidence": {
+    "after_suite": {
+      "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_wait_bound.py tests/test_agent_lane_sim.py tests/test_agent_lane_utilisation.py tests/test_agent_router_worker_slots.py tests/test_agent_router_gate.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots/logs/repair-gate.log",
+      "revision": "cd8ea00a83035effd0de9b8317f753819b224f30"
+    },
+    "baseline_suite": {
+      "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_wait_bound.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots/logs/s5-gate.log",
+      "revision": "f31419033df7b7f9c326e764f0d8536d782a94cb"
+    }
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-11-19T10:06:36.830522+00:00",
+  "total": 105
+}
