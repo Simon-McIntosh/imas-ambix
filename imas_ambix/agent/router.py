@@ -78,7 +78,11 @@ GATE_FILENAME = "router-gate.json"
 # document's sibling -- the last kept so a deployment that names neither keeps
 # taking control from exactly where it does today.
 GATE_PATH_ENV = "AMBIX_ROUTER_GATE_PATH"
-DEFAULT_GENERATION_WIDTH = 22
+# The width a router admits when it can read no gate file. It is the ceiling
+# past which prefill contention costs more than the extra streams return, so a
+# lost or unreadable control file narrows the lane to the safe width rather
+# than widening it past what the operator last set.
+DEFAULT_GENERATION_WIDTH = 12
 DEFAULT_GENERATION_WAIT_SECONDS = 300.0
 # How long a request pinned to one engine waits at that engine's queue before it
 # is placed elsewhere. The pin exists to keep a session's prompt prefix in one

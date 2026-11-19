@@ -359,7 +359,7 @@ def test_missing_gate_file_uses_five_minute_wait_default(tmp_path) -> None:
 
     settings = app._generation_gate.settings()
 
-    assert settings.width == 22
+    assert settings.width == 12
     assert settings.wait_seconds == 300.0
 
 

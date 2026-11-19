@@ -477,7 +477,7 @@ resolution has selected its upstream; it is not arrival order at the router.
 `router-gate.json` beside `lane.json` carries `width` and
 `wait_seconds`; the running router refreshes it at most once per second, so an
 operator can retune the width without a restart. The absent-file defaults are
-22 in flight and a 300-second wait, width 0 disables admission, and an expired
+12 in flight and a 300-second wait, width 0 disables admission, and an expired
 wait returns Anthropic HTTP 529 with a fixed five-second `Retry-After`. Catalog,
 and `count_tokens` requests bypass the gate because they consume no decode width;
 the router exposes no health route. The lane document publishes the router's
