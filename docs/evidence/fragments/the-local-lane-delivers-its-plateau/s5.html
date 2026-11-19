@@ -7,7 +7,13 @@ zeroes <code>worker_slots</code> while it exceeds <code>wait_bound_seconds</code
 (read from the gate's control file, 30 s by default). One field,
 <code>worker_slots_reason</code>, names a pause or a wait closure.</p>
 
-<h2>High-margin run (the pass condition)</h2>
+<h2>High-margin run (the pass condition the plan states)</h2>
+<p>§5's done-when asks for a margin at which the bound-disabled arm exceeds
+45 s p90 in some five-minute window while the bound-enabled arm stays under 45 s
+in every settled window. At the default margin the offered-load rule holds the
+pool at that margin's equilibrium, so the two arms agree and the scenario does
+not arise; the run below is the calibration that reaches it, and it is the node's
+stated measure.</p>
 <p>§3 instrument calibrated from the committed fed window 04:45–06:40 UTC on
 18 November, 4.5 h, seed 0, bound 30 s, <strong>margin 2.8</strong>. Five-minute
 windows start at the end of the 1800 s warm-up; the settled set drops the first

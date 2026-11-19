@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN
+from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN, percentile_or_none
 from imas_ambix.agent.router import (
     ADMISSION_WINDOW_SECONDS,
     DEFAULT_WAIT_BOUND_SECONDS,
@@ -151,10 +151,13 @@ def read_receipts(path: str | Path) -> list[ReceiptRow]:
 
 
 def _quantile(values: list[float], p: float) -> float:
-    ordered = sorted(values)
-    if not ordered:
-        return 0.0
-    return ordered[int(p * (len(ordered) - 1))]
+    """The p-quantile of *values*, an empty series reading as no wait at all.
+
+    The figure is the gate's own wait percentile, so this defers to the one
+    estimator rather than holding a second copy of the nearest-rank rule.
+    """
+    value = percentile_or_none(values, p)
+    return 0.0 if value is None else value
 
 
 def calibrate_rows(rows: Iterable[ReceiptRow], window: tuple[str, str]) -> Calibration:
@@ -352,13 +355,6 @@ class LaneSim:
         # Every admitted request's wait with the instant it was admitted, which
         # is the record a five-minute window's percentile is cut from.
         self.wait_events: list[tuple[float, float]] = []
-        # One sample a minute of the instant figures, so a change in the
-        # workload can be read as a series rather than only as a mean.
-        self.minute_samples: list[tuple[float, int, int, int, int]] = []
-        self._minute_seen = -1
-        # The think time each completed request scheduled, for reading the
-        # workload the run actually offered rather than the one intended.
-        self.think_draws: list[float] = []
         self.level_time: collections.Counter[int] = collections.Counter()
         self.live_time = 0.0
         # The rule's worker count in ten-minute buckets after the warm-up, so a
@@ -534,24 +530,10 @@ class LaneSim:
                     state["state"] = "think"
                     factor = self.think_scale(self.t)
                     think = self.rng.choice(self.calibration.think) * factor
-                    if self.t > WARM_UP_S:
-                        self.think_draws.append(think)
                     state["until"] = self.t + think
             if self.t > WARM_UP_S:
                 self.level_time[len(self.in_service)] += DT
                 self.live_time += len(self.workers) * DT
-                minute = int(self.t // 60.0)
-                if minute != self._minute_seen:
-                    self._minute_seen = minute
-                    self.minute_samples.append(
-                        (
-                            self.t,
-                            len(self.in_service),
-                            len(self.workers),
-                            len(self.gate),
-                            len(self.launching),
-                        )
-                    )
                 bucket = int((self.t - WARM_UP_S) // WORKER_BUCKET_S)
                 self.worker_bucket_time[bucket] += DT
                 self.worker_bucket_area[bucket] += len(self.workers) * DT
