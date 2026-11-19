@@ -25,7 +25,7 @@
   <title>The Local Lane Delivers Its Plateau | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="25">
 <meta name="plan-modified" content="2026-11-19">
 </head>
 <body>
@@ -153,6 +153,9 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20261118T114506284931-llp-a-session-with-queued-work-takes-idle-slots" data-who="reckon-build" data-when="2026-11-19T05:33:36Z">
     <div class="r-comment-body"><p>Held the lane's borrow reserve once across the lane instead of once for each session below its share, and grouped a run waiting at the gate under the session its last admitted request declared: the done-when document at capacity 16 with five sessions holding 6, 1, 2, 1 and 1 live runs offers every session 3, so the session holding 6 is offered the 3 free slots beyond the one reserve where the per-session reserve offered it 0, and the sessioned simulation delivers 0.999 of the single-session rate under the lane-wide reserve against 0.976 under one reserve per session - the direction the plan names, and the revised done-when at 1207b77f asks the lane-wide rule for within 1% of the single rate and more than the per-session rule: 0.1% and 2.4% short, 10.0 tok/s apart.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261119T072826924628-review-of-llp-a-long-gate-wait-closes-the-slots-f31419033df7" data-who="reckon-build" data-when="2026-11-19T08:59:50.621Z">
+    <div class="r-comment-body"><p>Independent review of r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots at head f31419033df7b7f9c326e764f0d8536d782a94cb scores goal_fidelity 18, evidence 11, scope_discipline 12, durability 12, fit 15, reuse 5 (total 73), with one blocking finding (router.py:1154 drops the _last_logged_settings assignment so the gate logs its settings on every poll) and four non-blocking findings.</p></div>
 </div>
 </section>
 </main>
