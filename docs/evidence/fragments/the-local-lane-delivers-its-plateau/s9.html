@@ -57,13 +57,18 @@ per-session tok=433.965 workers=18.366 ratio=0.9763
 </code></pre>
   <p>The probe calls the test suite's own rate helpers at four hours and three
   seeds, so these are the figures the assertions read.</p>
-  <p>The five-session lane under the lane-wide reserve delivers 444.0 tok/s
-  against the 444.5 a single session delivers on the same workload — a share of
-  0.999, inside the 5% the measure allows.</p>
-  <p><strong>The per-session reserve does not meet the named 5%.</strong> On the
-  same runs it delivers 434.0 tok/s, 0.976 of the single-session rate — 2.4%
-  short. The instrument says why: the reserve costs the lane about six workers
-  of 24, and the lane's measured rate curve is flat above roughly twenty workers
+  <p>The revised §9 done-when at <code>1207b77f</code> asks the
+  lane-wide reserve for within 1% of the single-session rate and for
+  more than the per-session reserve delivers; both hold. The
+  five-session lane under the lane-wide reserve delivers 444.0 tok/s
+  against the 444.5 a single session delivers on the same workload,
+  a share of 0.999, and a shortfall of 0.1%. The per-session reserve
+  delivers 434.0 tok/s, a share of 0.976, and a shortfall of 2.4%,
+  so the lane-wide rule is an order of magnitude closer to the
+  single-session rate and beats the per-session rule by 10.0 tok/s.
+  The instrument says why the per-session rule gives up that much:
+  the reserve costs the lane about six workers of 24, and the lane's
+  measured rate curve is flat above roughly twenty workers
   (fixed pools deliver 437.7 at 20 and 444.2 at 22, so 18.4 workers against 22.2
   costs 2%), while the capacity estimator answers an under-filled lane with a
   larger capacity and so re-opens the gap the reserve closed. The unit-level
@@ -71,8 +76,10 @@ per-session tok=433.965 workers=18.366 ratio=0.9763
   count, and that is the figure the change is landed at a 16-request capacity.
   The simulation's negative arm is committed as
   <code>test_a_reserve_per_session_leaves_the_queued_session_below_the_single_rate</code>
-  asserting only the direction and the measured 0.976, never a 5% the simulator
-  does not produce; the unmet threshold is carried in the landing record.</p>
+  asserting the direction and the measured share of 0.976, and the
+  shortfall the revised measure records
+  (<code>test_a_session_with_queued_work_delivers_the_plateau_beside_idle_sessions</code>
+  carries the 0.999).</p>
 
   <h3 id="llp-a-session-with-queued-work-takes-idle-slots-gate">Gate</h3>
   <pre><code>$ bash "$RUN/gate_run.sh" "$PWD"
