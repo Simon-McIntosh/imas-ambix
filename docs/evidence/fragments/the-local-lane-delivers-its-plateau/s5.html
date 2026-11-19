@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><title>§5 gate wait bound</title></head><body>
+<h1>Gate wait bound: measured instrument</h1>
+<p>Implementation: <code>worker_slots_reason</code> in <code>_AdmissionLedger.snapshot</code>,
+with <code>gate_wait_p90_seconds</code> over the last five minutes and the bound read
+from the gate's control file as <code>wait_bound_seconds</code> (default 30 s).</p>
+<table>
+<tr><th>arm (early-window calibration, think /3 at 2 h)</th><th>tok/s</th><th>workers</th><th>p90 max, 5-min windows after change +10 min</th><th>windows over 45 s</th><th>documents closed for wait</th></tr>
+<tr><td>bound 30 s</td><td>347.3</td><td>24.7</td><td>35.25 s</td><td>26</td></tr>
+<tr><td>bound disabled</td><td>347.3</td><td>24.7</td><td>35.25 s</td><td>0</td><td>0</td></tr>
+</table>
+<p>The bound fires: 26 published documents in the early-window run carry
+<code>worker_slots_reason: gate_wait</code> with <code>worker_slots: 0</code>.
+The negative control does not exceed 45 s, and the two arms are identical to
+the digit: in the simulation the dispatcher admits <code>min(slots, capacity -
+held)</code>, and the published capacity, not the slot count, caps the pool, so
+zeroing the slots changes no launch. Logs:
+<code>logs/s5-probe-early3.log</code>, <code>logs/s5-probe</code>.</p>
+</body></html>

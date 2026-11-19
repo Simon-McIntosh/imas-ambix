@@ -32,6 +32,7 @@ from imas_ambix.agent.lane_utilisation import (
     DEFAULT_MARGIN,
     RequestInterval,
     capacity_from_offered_load,
+    percentile_or_none,
     utilisation_block,
 )
 from imas_ambix.agent.request_receipts import (
@@ -243,6 +244,15 @@ GATE_CONTROLLER_KV_CEILING = 0.6
 GATE_CONTROLLER_WIDTH_FLOOR = 4
 
 
+# The gate offers no new runs while its own record shows requests waiting at
+# the gate longer than this. Admitting into a queue that is already slow buys
+# the lane nothing and deepens the very wait the figures report, so the bound
+# is a setting in the gate's control file and the wait is measured over a
+# window long enough to hold a fleet's turn cadence.
+DEFAULT_WAIT_BOUND_SECONDS = 30.0
+WAIT_BOUND_WINDOW_SECONDS = 300.0
+
+
 @dataclass(frozen=True, slots=True)
 class _GateSettings:
     width: int
@@ -275,6 +285,10 @@ class _GateSettings:
     # a few seconds of gate wait. Published beside the capacity it produced, so
     # a reader can reconcile the two without the control file.
     margin: float = DEFAULT_MARGIN
+    # The 90th-percentile gate wait, over the last five minutes of the gate's
+    # own record, above which the gate offers no new runs. Read at publication
+    # like the width, so moving the bound moves the gate without a restart.
+    wait_bound_seconds: float = DEFAULT_WAIT_BOUND_SECONDS
 
 
 # The window the worker-slot figures average over. It is the horizon long
@@ -499,6 +513,7 @@ class _AdmissionLedger:
         waiting_count: int = 0,
         duty_includes_wait: bool = False,
         claim_seconds: float | None = None,
+        wait_bound_seconds: float | None = DEFAULT_WAIT_BOUND_SECONDS,
     ) -> dict[str, object]:
         """The lane's live runs, capacity and spare slots from its record.
 
@@ -525,6 +540,13 @@ class _AdmissionLedger:
         ended within that many seconds, which is the population of runs whose
         requests the averaging window shows. The lane publishes the shorter
         working-horizon claim, because a run that stopped asking holds no slot.
+
+        ``wait_bound_seconds`` is the 90th-percentile gate wait, over the last
+        five minutes of this record, above which the gate offers no new run at
+        all: the slots are zeroed and ``worker_slots_reason`` names the wait.
+        ``None`` disables the bound, which is the simulation's negative control.
+        The one field carries both closures -- ``paused`` and ``gate_wait`` --
+        so a reader can say why slots are shut without learning two vocabularies.
         """
         window_start = now - self._window
         # The ledger's clock starts at its first admission, so a router younger
@@ -594,12 +616,42 @@ class _AdmissionLedger:
             + len({run for run in waiting_runs if run} - live_run_ids)
             + max(0, waiting_count)
         )
+        # The wait bound reads the same record the slots are sized from: a
+        # request's wait is the time it waited at the gate, and the window is
+        # the last five minutes so a wait that has already eased does not keep
+        # the gate shut. A closure caused by the wait is named in the one field
+        # that also names a pause.
+        gate_wait_p90 = percentile_or_none(
+            (
+                max(0.0, interval.started - interval.arrived)
+                for interval in self._intervals
+                if interval.started >= now - WAIT_BOUND_WINDOW_SECONDS
+            ),
+            0.9,
+        )
+        if verdict == "paused":
+            closed_reason: str | None = "paused"
+        elif (
+            wait_bound_seconds is not None
+            and gate_wait_p90 is not None
+            and gate_wait_p90 > wait_bound_seconds
+        ):
+            closed_reason = "gate_wait"
+        else:
+            closed_reason = None
         fields: dict[str, object] = {
             "window_seconds": self._window,
             "observed_seconds": observed,
             "samples": samples,
             "live_runs": live_runs,
             "margin": round(margin, 3),
+            "wait_bound_seconds": (
+                None if wait_bound_seconds is None else round(wait_bound_seconds, 1)
+            ),
+            "gate_wait_p90_seconds": (
+                None if gate_wait_p90 is None else round(gate_wait_p90, 1)
+            ),
+            "worker_slots_reason": closed_reason,
             "unkeyed_share": (unkeyed_busy / total_busy) if total_busy > 0 else None,
         }
         history_ready = (
@@ -624,13 +676,14 @@ class _AdmissionLedger:
                 verdict=verdict,
                 live_runs=live_runs,
                 live_sessions=live_sessions,
+                closed_reason=closed_reason,
             )
         published_ratio = round(keyed_busy / observed / live_runs, 3)
         fields["requests_per_run"] = published_ratio if published_ratio > 0 else None
         fields["worker_slots_basis"] = "measured"
         fields["capacity"] = capacity
         fields["worker_slots"] = self._slot_count(
-            verdict=verdict, capacity=capacity, live_runs=live_runs
+            closed_reason=closed_reason, capacity=capacity, live_runs=live_runs
         )
         fields.update(
             self._session_figures(
@@ -649,6 +702,7 @@ class _AdmissionLedger:
         verdict: str,
         live_runs: int,
         live_sessions: dict[str, set[str]],
+        closed_reason: str | None,
     ) -> dict[str, object]:
         """Publish slots from the gate's own width when the load is unstated.
 
@@ -667,7 +721,7 @@ class _AdmissionLedger:
         capacity = max(0, effective_width)
         fields["capacity"] = capacity
         slots = self._slot_count(
-            verdict=verdict, capacity=capacity, live_runs=live_runs
+            closed_reason=closed_reason, capacity=capacity, live_runs=live_runs
         )
         fields["worker_slots"] = slots
         fields.update(
@@ -678,20 +732,17 @@ class _AdmissionLedger:
         return fields
 
     @staticmethod
-    def _slot_count(*, verdict: str, capacity: int, live_runs: int) -> int:
-        """The remaining global slots: capacity less the runs, or 0 when paused.
+    def _slot_count(*, closed_reason: str | None, capacity: int, live_runs: int) -> int:
+        """The remaining global slots: capacity less the runs, or 0 when closed.
 
         A congested or full gate is the gate doing its job: the requests beyond
         its width wait here rather than on the engine, so a backlog costs the
-        cards nothing and keeps them fed between one worker's turns. Only a
-        paused gate admits nothing new: the capacity already accounts for the
-        lane's own queueing, so a wait beyond it is a different diagnosis and is
-        reported by the wait bound rather than read off an instant's queue
-        depth. Zeroing the slots whenever a request waited would stop
-        dispatchers at the first queued request, so the queue could never hold
-        the work that keeps the lane busy after its coordinators stop.
+        cards nothing and keeps them fed between one worker's turns. A closure does
+        admit nothing new, and there is one place it is decided: a pause and a
+        gate wait beyond the bound both arrive here, and both are named in the
+        one reason field.
         """
-        if verdict == "paused":
+        if closed_reason is not None:
             return 0
         return max(0, capacity - live_runs)
 
@@ -1038,6 +1089,7 @@ class _GenerationGate:
                 verdict=verdict,
                 margin=settings.margin,
                 waiting_runs=waiting_runs,
+                wait_bound_seconds=settings.wait_bound_seconds,
             )
         )
         utilisation = self._admissions.utilisation(
@@ -1102,16 +1154,17 @@ class _GenerationGate:
         if settings != self._last_logged_settings:
             logger.info(
                 "generation gate config path=%s engine=%s width=%d "
-                "wait_seconds=%s paused=%s margin=%s reason=%s",
+                "wait_seconds=%s paused=%s margin=%s "
+                "wait_bound_seconds=%s reason=%s",
                 self.config_path,
                 self._engine_id or "(unresolved)",
                 settings.width,
                 settings.wait_seconds,
                 settings.paused,
                 settings.margin,
+                settings.wait_bound_seconds,
                 settings.reason,
             )
-            self._last_logged_settings = settings
         return settings
 
     def _engine_payload(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -1191,6 +1244,16 @@ class _GenerationGate:
             or margin <= 0
         ):
             raise ValueError("margin must be a finite positive number")
+        wait_bound_seconds = payload.get(
+            "wait_bound_seconds", self._defaults.wait_bound_seconds
+        )
+        if (
+            isinstance(wait_bound_seconds, bool)
+            or not isinstance(wait_bound_seconds, int | float)
+            or not math.isfinite(wait_bound_seconds)
+            or wait_bound_seconds <= 0
+        ):
+            raise ValueError("wait_bound_seconds must be a finite positive number")
         target = payload.get("occupancy_target", DEFAULT_AUTO_OCCUPANCY_TARGET)
         raw_width = payload.get("width", self._defaults.width)
         if raw_width == GATE_AUTO_WIDTH:
@@ -1222,6 +1285,7 @@ class _GenerationGate:
                 cut_form=cut_form,
                 reason=reason,
                 margin=float(margin),
+                wait_bound_seconds=float(wait_bound_seconds),
             )
             return replace(settings, width=self._auto_width(settings))
         if type(raw_width) is not int or raw_width < 0:
@@ -1235,6 +1299,7 @@ class _GenerationGate:
             cut_form=cut_form,
             reason=reason,
             margin=float(margin),
+            wait_bound_seconds=float(wait_bound_seconds),
         )
 
     def _memory_width(self, settings: _GateSettings) -> int | None:
@@ -1915,6 +1980,7 @@ class _GenerationGate:
             # a zero admitted count: a lane with nothing running and a lane that
             # is refusing to run anything look identical in the counters alone.
             "paused": settings.paused,
+            "wait_bound_seconds": settings.wait_bound_seconds,
             "reason": settings.reason,
             "config_path": (
                 str(self.config_path) if self.config_path is not None else None

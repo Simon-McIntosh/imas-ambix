@@ -35,10 +35,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN
-from imas_ambix.agent.router import ADMISSION_WINDOW_SECONDS, _AdmissionLedger
+from imas_ambix.agent.router import (
+    ADMISSION_WINDOW_SECONDS,
+    DEFAULT_WAIT_BOUND_SECONDS,
+    _AdmissionLedger,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
     from pathlib import Path
 
 #: The step the simulation advances by. A gate wait is reported to this
@@ -280,6 +284,11 @@ class RunResult:
     workers: float
 
 
+def _steady(_t: float) -> float:
+    """The calibration's own workload, unchanged for the whole run."""
+    return 1.0
+
+
 class LaneSim:
     """One run of the lane: workers, the gate, and a slot rule.
 
@@ -300,6 +309,8 @@ class LaneSim:
         queue: int = 10**9,
         margin: float = DEFAULT_MARGIN,
         duty_includes_wait: bool = False,
+        wait_bound_seconds: float | None = DEFAULT_WAIT_BOUND_SECONDS,
+        think_scale: Callable[[float], float] | None = None,
     ) -> None:
         if width < 1:
             raise ValueError("a gate is at least one request wide")
@@ -316,6 +327,13 @@ class LaneSim:
         # over the live span including the gate wait, so a queued lane reads as
         # a light one and the rule admits without bound.
         self.duty_includes_wait = duty_includes_wait
+        # The gate's own wait bound, so the simulation exercises the router's
+        # closure rather than a copy of it. ``None`` is the negative control.
+        self.wait_bound_seconds = wait_bound_seconds
+        # How hard the workers ask at instant t: a fleet that starts running
+        # shorter turns offers more load, which is what a dropped think time
+        # models. The default is the calibration's own workload.
+        self.think_scale = think_scale if think_scale is not None else _steady
         self.t = 0.0
         self.end = hours * 3600.0
         self.workers: dict[int, dict[str, float | str]] = {}
@@ -328,6 +346,19 @@ class LaneSim:
         self.slots = 0
         self.capacity = 0
         self.waits: list[float] = []
+        # Each published admission document, so a window's slots and the reason
+        # they were shut can be read after the run rather than only at its end.
+        self.documents: list[dict[str, object]] = []
+        # Every admitted request's wait with the instant it was admitted, which
+        # is the record a five-minute window's percentile is cut from.
+        self.wait_events: list[tuple[float, float]] = []
+        # One sample a minute of the instant figures, so a change in the
+        # workload can be read as a series rather than only as a mean.
+        self.minute_samples: list[tuple[float, int, int, int, int]] = []
+        self._minute_seen = -1
+        # The think time each completed request scheduled, for reading the
+        # workload the run actually offered rather than the one intended.
+        self.think_draws: list[float] = []
         self.level_time: collections.Counter[int] = collections.Counter()
         self.live_time = 0.0
         # The rule's worker count in ten-minute buckets after the warm-up, so a
@@ -404,9 +435,20 @@ class LaneSim:
             # publication period and the pool overshoots the capacity.
             waiting_count=len(self.launching),
             duty_includes_wait=self.duty_includes_wait,
+            wait_bound_seconds=self.wait_bound_seconds,
         )
         self.capacity = int(snapshot["capacity"] or 0)
         self.slots = int(snapshot["worker_slots"])
+        self.documents.append(
+            {
+                "t": self.t,
+                "worker_slots": self.slots,
+                "capacity": self.capacity,
+                "live_runs": snapshot["live_runs"],
+                "gate_wait_p90_seconds": snapshot["gate_wait_p90_seconds"],
+                "worker_slots_reason": snapshot["worker_slots_reason"],
+            }
+        )
         return self.slots
 
     def worker_ten_minute_means(self, *, first_hour: float = 3600.0) -> list[float]:
@@ -472,7 +514,9 @@ class LaneSim:
                     str(worker), now=self.t, arrived=float(state["arrived"])
                 )
                 if self.t > WARM_UP_S:
-                    self.waits.append(self.t - float(state["arrived"]))
+                    waited = self.t - float(state["arrived"])
+                    self.waits.append(waited)
+                    self.wait_events.append((self.t, waited))
             rate = self.rate_at(len(self.in_service)) if self.in_service else 0.0
             for worker in list(self.in_service):
                 state = self.workers[worker]
@@ -488,10 +532,26 @@ class LaneSim:
                     if interval is not None:
                         self.ledger.release(interval, now=self.t)
                     state["state"] = "think"
-                    state["until"] = self.t + self.rng.choice(self.calibration.think)
+                    factor = self.think_scale(self.t)
+                    think = self.rng.choice(self.calibration.think) * factor
+                    if self.t > WARM_UP_S:
+                        self.think_draws.append(think)
+                    state["until"] = self.t + think
             if self.t > WARM_UP_S:
                 self.level_time[len(self.in_service)] += DT
                 self.live_time += len(self.workers) * DT
+                minute = int(self.t // 60.0)
+                if minute != self._minute_seen:
+                    self._minute_seen = minute
+                    self.minute_samples.append(
+                        (
+                            self.t,
+                            len(self.in_service),
+                            len(self.workers),
+                            len(self.gate),
+                            len(self.launching),
+                        )
+                    )
                 bucket = int((self.t - WARM_UP_S) // WORKER_BUCKET_S)
                 self.worker_bucket_time[bucket] += DT
                 self.worker_bucket_area[bucket] += len(self.workers) * DT
