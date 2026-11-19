@@ -707,7 +707,7 @@ def test_a_reserve_per_session_leaving_nothing_for_the_queued_session() -> None:
     # Hand arithmetic on the same runs: B and D and E reserve min(3-1, 2) = 2
     # each and C reserves min(3-2, 2) = 1.
     assert 3 * 2 + 1 == 7
-    assert 3 * 2 + 1 > document["worker_slots"]
+    assert document["worker_slots"] < 3 * 2 + 1
     assert per_session["A"] == 0
     # The lane's own rule offers what the reserves took: the offer is not an
     # artefact of having been passed a different document.
