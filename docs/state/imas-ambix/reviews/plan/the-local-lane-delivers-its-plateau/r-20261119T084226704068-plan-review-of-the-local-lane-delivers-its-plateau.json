@@ -1,0 +1,49 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-19T08:59:23.947Z",
+  "dispatched_at": "2026-11-19T08:57:43Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/the-local-lane-delivers-its-plateau.html:110",
+      "id": "done_when-1",
+      "reason": "the node can close the section on a difference inside the pass bar, so the control should be stated as the per-session arm missing the 1% bar, which the fragment already records at 2.4%.",
+      "text": "\u00a79's control arm is only \"the per-session reserve delivers a lower rate than the lane-wide reserve does\" while the pass bar is within 1% of the single-session rate, so a per-session arm 0.5% short would satisfy both the pass criterion and the control even though the deliverable's measured justification is a 2.4% shortfall against the lane-wide rule's 0.1%",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "ba09c8741996b72c8359d69dfa5cbda5d0965f09",
+  "plan_fingerprint": "8cc5bd351c671ffc7b4aa91131afac99f5245ece0c30f27af5684032c1609ed5",
+  "plan_slug": "the-local-lane-delivers-its-plateau",
+  "plan_version": 22,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261119T084226704068-plan-review-of-the-local-lane-delivers-its-plateau",
+  "reviewed_blob_sha": "3d9aa01575e1fc43f9f91abf61b74ef15e9cf2c3",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `s9.html`, `lane-borrow-reserve.json`, the \u00a73/\u00a74/\u00a78 fragments and the three figure SVGs the plan cites all resolve in the repository, and the extensionless section hrefs resolve as `<path>.html`.",
+    "done_when": "a finding \u2014 \u00a79's done-when (plan line 110) sets the lane-wide reserve's success at within 1% of the single-session rate but its negative control only requires the per-session reserve to deliver \"a lower rate than the lane-wide reserve does\", a comparison that also holds when both arms clear the 1% bar.",
+    "evidence_paths": "pass \u2014 results are logged to `docs/evidence/fragments/the-local-lane-delivers-its-plateau/s9.html` and the document copy is kept beside it as `lane-borrow-reserve.json`, both committed durable paths under `docs/evidence/`.",
+    "naming": "pass \u2014 no plan labels, stage names or ticket numbers reach the described records; \"borrow reserve\", `worker_slots`, `live_runs` and `capacity` state mechanisms.",
+    "reasoning": "pass \u2014 the measured paragraph's cause (one reserve held per session against a lane-wide free-slot count) is what the cited `lane-borrow-reserve.json` shows (worker_slots 7, borrow_reserve 2, the session holding 6 live runs offered 0, four quiet sessions offered 4\u20135), the endpoint is checkable in \u00a73's simulation, and the added session property is stated as an instrument precondition, not a code path.",
+    "single_goal": "pass \u2014 \u00a79 names one deliverable, a reserve held once across the per-session blocks rather than once per session; the unit case and the sessioned simulation measure that one goal.",
+    "wiring": "pass \u2014 \u00a79's `depends-on` names s4 and \u00a78 names s9 alongside s5 and s6, and every named section exists; the session work \u00a79 asks of the \u00a73 simulation points at a section already `done`, so no dependency is missing."
+  },
+  "section_digests": {
+    "_document": "b2955de4ef54f85ae03569396f6c71314d5a0752765dd268d6449986dba88c96",
+    "s1": "ddc835fd303090d98490a5c9d342cca9a24e4efe1dd156a993b609bc3faeb6c2",
+    "s2": "423e76dd6883c004280c9ce00b01ba4ccced81a8107dff681fd0fac2e27ff802",
+    "s3": "e5260d7cb06bccfb1cb3e0a30a1dbc0e30117a7799ea703b9610ce44b5545299",
+    "s4": "35fcc69798233b454362512ff800de8ac82b45f993a36229ef27f13c254a67a3",
+    "s5": "c9d5ce8dbeb3d7270b9189800a5fafc7f95c2c13e08feb15693cb592bf300a4f",
+    "s6": "45a75934dba3285772f81a282e946231517f5f4aca01736424aac9dec6b8db7e",
+    "s7": "6498f3d9a8b765fe02f95daf306c5eebe1f24721973abcbe828238bcf8dfb6ef",
+    "s8": "ca2ed7a06df8a9685cf1420e56f92eecd5918ae501b965b92a5c4630b57c9755",
+    "s9": "3c11acd8233b3327826f55ab7395a3de2ab9d829b095958c89b2ac5a897c3af4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-19T09:14:26.437285+00:00",
+  "total": null
+}
