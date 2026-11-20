@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-20T20:27:58.558Z",
+  "dispatched_at": "2026-11-20T20:15:46Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:114",
+      "id": "done_when-1",
+      "reason": "without a named quantity, workload and window the node's gate is unfalsifiable in practice and a worker must invent the measure, which is exactly what this section's done-when exists to prevent.",
+      "text": "the ten-seed arm must hold \"windowed utilisation within the plateau band the plan's \u00a78 names\", but \u00a78 (plan.html:104) names no \"windowed utilisation\" and no \"band\": it bounds the delivered rate at \u226595% of the plateau estimate and the 90th-percentile wait under 15 s per fed hour on the live lane, while the plan's word for utilisation is \u00a76's share of time at the gate width, so a node can measure either quantity and pass or fail differently; the arm also fixes no workload and no window, although \u00a74 measured 1.25 at 95.9% on the starved workload and 98.9% elsewhere and that is the margin where the choice of workload decides the verdict \u2014 and unlike \u00a78's comparable reading (plan.html:104, \"runs as a job on `rigel`\") the \u226510-seed simulation names no partition though it is heavy work.",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:114",
+      "id": "wiring-1",
+      "reason": "the plan then carries two contradictory statements of its own default and a landed section's gate silently becomes un-rerunnable, which is what a reader or a re-dispatch would hit.",
+      "text": "\u00a710 changes a default that \u00a74 states twice: \u00a74 (plan.html:83) says \"The margin is a setting in the gate's control file and defaults to 1.5\" and \u00a74's done-when (plan.html:84) bars the \u00a73 simulation at \"the default margin of 1.5\" to \u226597% of plateau, whereas \u00a74's own measurement puts 1.25 at 95.9% on the starved workload, so after \u00a710 lands \"the default\" reads 1.25 and \u00a74's gate cannot be re-run and pass, while \u00a74 still tells a reader the default is 1.5.",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:23",
+      "id": "wiring-2",
+      "reason": "a bar borrowed from \u00a78 is only stable if \u00a710 declares that wait, so a later revision of \u00a78's bound silently changes what \u00a710 is measured against.",
+      "text": "`plan-section-depends-on` declares waits for s4, s5, s7, s8 and s9 but not s10, although \u00a710 consumes \u00a74's margin and capacity computation (the default it overrides, and \u00a74's published `margin` field) and its gate bar is the measure \u00a78 owns.",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:114",
+      "id": "reasoning-1",
+      "reason": "a module named in the plan is a guess a reviewer has to test against the code, and every wrong guess costs a review round.",
+      "text": "the section names the implementation: `Write paths: imas_ambix/agent/lane_utilisation.py, tests/test_agent_lane_default_margin.py`, fixing the module and test file a worker must edit, where the plan's other sections cite only the evidence fragment they log (compare \u00a73, plan.html:79, \u00a77, plan.html:99) and the reuse map belongs to the node brief composed from this review.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:114",
+      "id": "reasoning-2",
+      "reason": "the sentence states the motivation for a decision already taken and no node's measure depends on the number, though adding the source path would make the claim checkable.",
+      "text": "the motivation cites \"over-ceiling stalls measured at 30 running against a ceiling of 22\" with no anchor in the plan or in this repository's evidence, so a reader cannot resolve the fact the decision rests on; the direction it supports (a tighter margin admits fewer workers and so runs the lane further from the reported figure) is sound, so only the citation is missing.",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_commit": "dcdcbb2a0ab5049a52ac776b957e8b2610fb543d",
+  "plan_fingerprint": "963a09392b24e654c3e52a39d416beb7bc8d6d8d84b8f54ba3836b8ceee235f5",
+  "plan_slug": "the-local-lane-delivers-its-plateau",
+  "plan_version": 28,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261120T201517648743-plan-review-of-the-local-lane-delivers-its-plateau",
+  "reviewed_blob_sha": "02801648ccd2fd70df2cde721533fc05d64410a5",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `imas_ambix/agent/lane_utilisation.py` resolves and holds `DEFAULT_MARGIN = 1.5` at line 51, `tests/test_agent_lane_default_margin.py` is correctly absent (the section creates it), `docs/evidence/fragments/.../s10.html`'s directory exists, and every `#s1`\u2013`#s9` href resolves.",
+    "done_when": "a finding \u2014 \u00a710's simulation arm measures \"windowed utilisation within the plateau band the plan's \u00a78 names\", a quantity \u00a78 never names, on a workload the section never fixes.",
+    "evidence_paths": "pass \u2014 the gate writes `docs/evidence/fragments/the-local-lane-delivers-its-plateau/s10.html`, a committed evidence path the plan's other sections already use.",
+    "naming": "pass \u2014 the section id `s10` is plan structure, the test name carries the mechanism (`default_margin`), and the one dated decision sentence records a decision rather than a plan label or changelog.",
+    "reasoning": "a finding \u2014 \u00a710 names the module and the test file to edit, which is the implementation the plan is not supposed to fix, and its motivation cites an over-ceiling figure with no anchor inside the plan's evidence.",
+    "single_goal": "pass \u2014 \u00a710 carries one deliverable (the lane's default admission margin is 1.25), with the unit test and the simulation run as its two pieces of evidence.",
+    "wiring": "a finding \u2014 \u00a710 is absent from `plan-section-depends-on` (plan.html:23) while its gate is defined by a measure \u00a78 owns, and it changes a default that \u00a74 (plan.html:83-84) still states as 1.5, so the plan asserts two defaults and a gate no longer holds."
+  },
+  "section_digests": {
+    "_document": "e6fbb7df0702914b42b44c49cb30d9963c1315b87c5274e518fde6fae4002a75",
+    "s1": "ddc835fd303090d98490a5c9d342cca9a24e4efe1dd156a993b609bc3faeb6c2",
+    "s10": "f77349fe44a6b333173c18721c0d42d0f11085ae7151fa61caac3ea5f2536ab2",
+    "s2": "423e76dd6883c004280c9ce00b01ba4ccced81a8107dff681fd0fac2e27ff802",
+    "s3": "e5260d7cb06bccfb1cb3e0a30a1dbc0e30117a7799ea703b9610ce44b5545299",
+    "s4": "35fcc69798233b454362512ff800de8ac82b45f993a36229ef27f13c254a67a3",
+    "s5": "c9d5ce8dbeb3d7270b9189800a5fafc7f95c2c13e08feb15693cb592bf300a4f",
+    "s6": "45a75934dba3285772f81a282e946231517f5f4aca01736424aac9dec6b8db7e",
+    "s7": "6498f3d9a8b765fe02f95daf306c5eebe1f24721973abcbe828238bcf8dfb6ef",
+    "s8": "ca2ed7a06df8a9685cf1420e56f92eecd5918ae501b965b92a5c4630b57c9755",
+    "s9": "3c11acd8233b3327826f55ab7395a3de2ab9d829b095958c89b2ac5a897c3af4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-20T20:28:08.622363+00:00",
+  "total": null
+}
