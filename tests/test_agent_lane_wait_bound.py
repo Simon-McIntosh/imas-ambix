@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import pytest
+
 from imas_ambix.agent.lane_sim import LaneSim, calibrate_rows, read_receipts
 from imas_ambix.agent.router import (
     DEFAULT_WAIT_BOUND_SECONDS,
@@ -118,16 +120,19 @@ def test_a_malformed_bound_falls_back_to_the_default(tmp_path) -> None:
 #: margin is evidence, not a default, and it is re-measured when the rule the
 #: simulation calls changes.
 _SIM_MARGIN = 2.6
+#: The seeds the bound is held to: a fixed set, so a seed that breaches is a
+#: finding about the rule rather than a sample that can be dropped.
+_SIM_SEEDS = tuple(range(10))
 _SIM_WARM_UP_S = 1800.0
 _SIM_SETTLED_S = _SIM_WARM_UP_S + 600.0
 
 
-def _simulated(bound):
+def _simulated(bound, seed):
     rows = read_receipts(_RECEIPTS / "2026-11-18T0445-0640.jsonl.gz")
     calibration = calibrate_rows(rows, ("2026-11-18T04:45:00Z", "2026-11-18T06:40:00Z"))
     sim = LaneSim(
         calibration,
-        seed=0,
+        seed=seed,
         hours=4.5,
         margin=_SIM_MARGIN,
         wait_bound_seconds=bound,
@@ -159,10 +164,16 @@ def _window_p90s(sim):
     return windows
 
 
-def test_the_bound_holds_a_high_margin_lane_under_committed_wait() -> None:
-    """A margin whose unbounded run crosses 45 s is held under it by the bound."""
-    unbounded = _simulated(None)
-    bounded = _simulated(DEFAULT_WAIT_BOUND_SECONDS)
+@pytest.mark.parametrize("seed", _SIM_SEEDS)
+def test_the_bound_holds_a_high_margin_lane_under_committed_wait(seed: int) -> None:
+    """A margin whose unbounded run crosses 45 s is held under it by the bound.
+
+    Every seed of the fixed set carries the same assertion: the bound-disabled
+    run crosses 45 s in some settled window, and the bound holds every settled
+    window of the bounded run under it.
+    """
+    unbounded = _simulated(None, seed)
+    bounded = _simulated(DEFAULT_WAIT_BOUND_SECONDS, seed)
 
     assert unbounded.documents
     assert bounded.documents

@@ -22,18 +22,19 @@ margin both arms, <code>all_debug</code>); the margin was re-measured after the
 lane's borrow reserve landed, because that rule moves the pool the bound sits
 on.</p>
 <table>
-<tr><th>seed</th><th>arm</th><th>p90 max, settled windows</th><th>settled windows over 45 s</th><th>documents closed for wait</th></tr>
-<tr><td>0</td><td>bound 30 s</td><td>40.0 s</td><td>0</td><td>260</td></tr>
-<tr><td>0</td><td>bound disabled</td><td>47.0 s</td><td>1</td><td>0</td></tr>
-<tr><td>1</td><td>bound 30 s</td><td>43.75 s</td><td>0</td><td>248</td></tr>
-<tr><td>1</td><td>bound disabled</td><td>54.5 s</td><td>2</td><td>0</td></tr>
-<tr><td>2</td><td>bound 30 s</td><td>40.5 s</td><td>0</td><td>238</td></tr>
-<tr><td>2</td><td>bound disabled</td><td>53.75 s</td><td>1</td><td>0</td></tr>
+<tr><th>seed</th><th>bound 30 s: p90 max</th><th>windows over 45 s</th><th>closed for wait</th><th>bound disabled: p90 max</th><th>windows over 45 s</th></tr>
+<tr><td>0</td><td>40.00 s</td><td>0</td><td>260</td><td>47.00 s</td><td>1</td></tr>
+<tr><td>1</td><td>43.75 s</td><td>0</td><td>248</td><td>54.50 s</td><td>2</td></tr>
+<tr><td>2</td><td>40.50 s</td><td>0</td><td>238</td><td>53.75 s</td><td>1</td></tr>
+<tr><td>3</td><td>39.00 s</td><td>0</td><td>278</td><td>43.25 s</td><td>0</td></tr>
+<tr><td>4</td><td>45.75 s</td><td>1</td><td>308</td><td>49.50 s</td><td>1</td></tr>
+<tr><td>5</td><td>45.00 s</td><td>0</td><td>189</td><td>45.00 s</td><td>0</td></tr>
+<tr><td>6</td><td>43.00 s</td><td>0</td><td>287</td><td>43.00 s</td><td>0</td></tr>
+<tr><td>7</td><td>38.00 s</td><td>0</td><td>256</td><td>42.00 s</td><td>0</td></tr>
+<tr><td>8</td><td>40.50 s</td><td>0</td><td>216</td><td>43.50 s</td><td>0</td></tr>
+<tr><td>9</td><td>40.25 s</td><td>0</td><td>256</td><td>44.00 s</td><td>0</td></tr>
 </table>
-<p>Every seed carries the bound-disabled arm over 45 s and the bound-enabled arm
-under it in every settled window; the test asserts seed 0, which is the run the
-plan's condition is written against. The margin is the evidence figure, not a
-default.</p>
+<p>Ten fixed seeds at margin 2.6. The worst seed for the bounded arm is seed 4 at 45.75 s, one settled window over 45 s: the bound does not hold on every seed. Ten seeds by five margins (2.6 to 3.2) were swept and no margin puts every seed inside the bound while also carrying the bound-disabled arm over 45 s; the bound closes admissions at the publication cadence, so a window that straddles a closure still admits the requests queued before it. The unit test asserts the whole set and fails on the seeds below.</p>
 
 <h2>Think time dropping to a third at two hours (measured, not a pass condition)</h2>
 <p>Default margin 1.5, think time divided by three at 7200 s, both arms run with
