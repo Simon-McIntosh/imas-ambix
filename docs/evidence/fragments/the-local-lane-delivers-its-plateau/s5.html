@@ -34,7 +34,7 @@ on.</p>
 <tr><td>8</td><td>40.50 s</td><td>0</td><td>216</td><td>43.50 s</td><td>0</td></tr>
 <tr><td>9</td><td>40.25 s</td><td>0</td><td>256</td><td>44.00 s</td><td>0</td></tr>
 </table>
-<p>Ten fixed seeds at margin 2.6. The worst seed for the bounded arm is seed 4 at 45.75 s, one settled window over 45 s: the bound does not hold on every seed. Ten seeds by five margins (2.6 to 3.2) were swept and no margin puts every seed inside the bound while also carrying the bound-disabled arm over 45 s; the bound closes admissions at the publication cadence, so a window that straddles a closure still admits the requests queued before it. The unit test asserts the whole set and fails on the seeds below.</p>
+<p>Ten fixed seeds at margin 2.6. The worst seed for the bounded arm is seed 4 at 45.75 s, one settled window over 45 s: the bound does not hold on every seed. Ten seeds by five margins (2.6 to 3.2) were swept and no margin puts every seed inside the bound while also carrying the bound-disabled arm over 45 s; the bound closes admissions at the publication cadence, so a window that straddles a closure still admits the requests queued before it. The unit test asserts the whole set: the test file's seeds 0 to 9, and it fails on seed 4 for the bounded arm and on seeds 3, 5, 6, 7, 8 and 9 because their bound-disabled arm never crosses 45 s.</p>
 
 <h2>Think time dropping to a third at two hours (measured, not a pass condition)</h2>
 <p>Default margin 1.5, think time divided by three at 7200 s, both arms run with
