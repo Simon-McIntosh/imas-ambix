@@ -1,0 +1,59 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-21T21:05:26.743Z",
+  "dispatched_at": "2026-11-21T20:51:22Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:118",
+      "id": "reasoning-1",
+      "reason": "removing the Write-paths sentence leaves \u00a711's endpoint and done-when intact and lets the node brief, which reads the code, own the reuse map.",
+      "text": "\u00a711 ends with \"Write paths: imas_ambix/agent/registry.py, imas_ambix/agent/profile.py, imas_ambix/agent/slurm.py, imas_ambix/agent/AGENTS.md, tests/test_agent_registry_lives_under_home.py\", fixing the modules and the test file a worker must edit, and its done-when likewise names the test file \u2014 so the plan prescribes implementation where its other sections cite only the evidence fragment they log (compare \u00a73 at line 79 and \u00a76 at line 94), and a wrong guess at the split between `profile.py` and `imas_ambix/agent/AGENTS.md` costs a review round",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/the-local-lane-delivers-its-plateau.html:89",
+      "id": "done_when-1",
+      "reason": "the deferred repair to \"hold on ten fixed seeds\" covers the bounded arm only, so the section's closure rests on an arm that is computed and discarded, and it cannot be closed again on the same evidence.",
+      "text": "\u00a75's done-when closes with \"Negative control: the bound-disabled run of that same configuration, which exceeds 45 s in at least one window\", but the delivered test asserts only the bounded arm: `tests/test_agent_lane_wait_bound.py:176-195` parametrises over `_SIM_SEEDS = tuple(range(10))` and asserts `max(settled) < 45.0` on the bounded run, while its own note at lines 180-181 says the unbounded arm \"need not cross 45 s for the seed to pass\"; the review the plan now records in this document's comment block (plan.html:160) puts it at 4 of 10 seeds \u2014 so the falsification the section names is only \"reported, not asserted\", and a bound that never closes a slot would satisfy the section as written",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "b9f76feea8fcb20df706a5d71b6e2b84ec627ca2",
+  "plan_fingerprint": "4223b6add7c26b26029b61203d347180f2a293945b758e8ee81dba0bece6d324",
+  "plan_slug": "the-local-lane-delivers-its-plateau",
+  "plan_version": 33,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261121T205105640844-plan-review-of-the-local-lane-delivers-its-plateau",
+  "reviewed_blob_sha": "27b93c3dd7788031a9836e64170715e590a27e8f",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `imas_ambix/agent/registry.py`, `profile.py`, `slurm.py`, `imas_ambix/agent/AGENTS.md` and the evidence directory all exist, and `~/.local/state/ambix/serve-registry` named in the new followup exists on disk.",
+    "done_when": "a finding \u2014 \u00a75's declared negative control is not asserted by the test that closed the section, and the document's own newly recorded review says so.",
+    "evidence_paths": "pass \u2014 \u00a711's record is `docs/evidence/fragments/the-local-lane-delivers-its-plateau/s11.html` beside the directory's other fragments, not a scratch or temporary path.",
+    "naming": "pass \u2014 \u00a711 introduces no plan labels, stage names, ticket numbers or changelog prose; the test and symbol names describe the mechanism.",
+    "reasoning": "a finding \u2014 the stated root cause matches its evidence, and \u00a711's endpoint is checkable, but the section names the modules and test file a worker must edit.",
+    "single_goal": "pass \u2014 \u00a711 carries one durable-state location with the guard that protects it, and its two controls test the two halves of that one change.",
+    "wiring": "pass \u2014 every `plan-section-depends-on` entry resolves to a section that exists, and \u00a711 needs no upstream, so its absence from the map is correct."
+  },
+  "section_digests": {
+    "_document": "2eb3d961b070f0b83192a931549488d98b921835538339153ed1f0a813b05307",
+    "s1": "ddc835fd303090d98490a5c9d342cca9a24e4efe1dd156a993b609bc3faeb6c2",
+    "s10": "4198c0439f5e521f7909d70e7ad230734656d6c2669e3c87b28aa735b1af71e8",
+    "s11": "0899f97ecb8f3533ec414b4d6d0ee6dab0bc0ebac475ad28f359424c8ad20208",
+    "s2": "423e76dd6883c004280c9ce00b01ba4ccced81a8107dff681fd0fac2e27ff802",
+    "s3": "e5260d7cb06bccfb1cb3e0a30a1dbc0e30117a7799ea703b9610ce44b5545299",
+    "s4": "35fcc69798233b454362512ff800de8ac82b45f993a36229ef27f13c254a67a3",
+    "s5": "c9d5ce8dbeb3d7270b9189800a5fafc7f95c2c13e08feb15693cb592bf300a4f",
+    "s6": "45a75934dba3285772f81a282e946231517f5f4aca01736424aac9dec6b8db7e",
+    "s7": "6498f3d9a8b765fe02f95daf306c5eebe1f24721973abcbe828238bcf8dfb6ef",
+    "s8": "ca2ed7a06df8a9685cf1420e56f92eecd5918ae501b965b92a5c4630b57c9755",
+    "s9": "3c11acd8233b3327826f55ab7395a3de2ab9d829b095958c89b2ac5a897c3af4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-21T21:05:37.371793+00:00",
+  "total": null
+}
