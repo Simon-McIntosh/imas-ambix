@@ -121,7 +121,9 @@ def test_ledger_sizes_capacity_from_the_load_live_runs_offer() -> None:
         busy = ledger.admit(f"live-{index}", now=now - 400.0, arrived=now - 405.0)
         ledger.release(busy, now=now - 350.0)
         ledger.admit(f"live-{index}", now=now - 100.0, arrived=now - 105.0)
-    snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
+    snapshot = ledger.snapshot(
+        now=now, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
 
     service = 15 * 150.0
     # First arrival 405 s ago, last request ended at the snapshot.
@@ -182,7 +184,9 @@ def test_published_slots_are_capacity_less_the_live_runs() -> None:
     """The figure a dispatch reads is the spare runs, not the capacity."""
     now = _NOW
     ledger = _live_ledger(now, 10)
-    snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
+    snapshot = ledger.snapshot(
+        now=now, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     assert snapshot["worker_slots_basis"] == "measured"
     assert snapshot["capacity"] == 24
     assert snapshot["worker_slots"] == 14
@@ -193,16 +197,24 @@ def test_capacity_is_the_margin_times_the_width_over_the_load() -> None:
     """A dispatcher's own arithmetic on the published margin is the figure."""
     now = _NOW
     ledger = _live_ledger(now, 10)
-    open_snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
+    open_snapshot = ledger.snapshot(
+        now=now, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     for margin in (1.0, 1.25, 1.5):
         snapshot = ledger.snapshot(
-            now=now, effective_width=12, verdict="open", margin=margin
+            now=now,
+            effective_width=12,
+            verdict="open",
+            margin=margin,
+            wait_bound_seconds=None,
         )
         assert snapshot["capacity"] == _capacity_at(margin)
         assert snapshot["worker_slots"] == snapshot["capacity"] - 10
     # Below margin 1.0 the ten live runs exceed the capacity and the lane offers
     # no room rather than a negative number.
-    tight = ledger.snapshot(now=now, effective_width=12, verdict="open", margin=0.2)
+    tight = ledger.snapshot(
+        now=now, effective_width=12, verdict="open", margin=0.2, wait_bound_seconds=None
+    )
     assert tight["capacity"] < 10
     assert tight["worker_slots"] == 0
     assert open_snapshot["margin"] == DEFAULT_MARGIN
@@ -220,9 +232,15 @@ def test_gate_wait_is_left_out_of_the_offered_load() -> None:
     """
     now = _NOW
     ledger = _live_ledger(now, 12, wait=60.0)
-    snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
+    snapshot = ledger.snapshot(
+        now=now, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     including_wait = ledger.snapshot(
-        now=now, effective_width=12, verdict="open", duty_includes_wait=True
+        now=now,
+        effective_width=12,
+        verdict="open",
+        duty_includes_wait=True,
+        wait_bound_seconds=None,
     )
     assert snapshot["capacity"] == 20
     assert including_wait["capacity"] == 27
@@ -244,9 +262,17 @@ def test_measuring_duty_including_gate_wait_runs_away() -> None:
     ledger = _AdmissionLedger(min_history_seconds=0.0)
     for index in range(15):
         ledger.admit(f"q-{index}", now=now - 10.0, arrived=now - 180.0)
-    measured = ledger.snapshot(now=now, effective_width=12, verdict="open")
+    # The bound is off: it is the load reading that is measured, and a lane
+    # with waits this long is what the bound closes in a bounded lane.
+    measured = ledger.snapshot(
+        now=now, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     runaway = ledger.snapshot(
-        now=now, effective_width=12, verdict="open", duty_includes_wait=True
+        now=now,
+        effective_width=12,
+        verdict="open",
+        duty_includes_wait=True,
+        wait_bound_seconds=None,
     )
     assert runaway["capacity"] > 200
     assert measured["capacity"] < runaway["capacity"] / 10
@@ -278,9 +304,13 @@ def test_two_live_runs_assume_the_capacity_and_keep_it_when_congested() -> None:
 def test_fresh_ledger_assumes_capacity_then_measures_once_history_elapses() -> None:
     start = _NOW
     ledger = _in_service_ledger(start, 4, elapsed=0.0)
-    early = ledger.snapshot(now=start + 299.0, effective_width=16, verdict="open")
+    early = ledger.snapshot(
+        now=start + 299.0, effective_width=16, verdict="open", wait_bound_seconds=None
+    )
     assert early["worker_slots_basis"] == "assumed"
-    ready = ledger.snapshot(now=start + 300.0, effective_width=16, verdict="open")
+    ready = ledger.snapshot(
+        now=start + 300.0, effective_width=16, verdict="open", wait_bound_seconds=None
+    )
     assert ready["worker_slots_basis"] == "measured"
     assert ready["live_runs"] == 4
     # Four runs continuously in service offer a load of one, so the capacity is
@@ -347,12 +377,18 @@ def test_a_queueing_gate_still_offers_its_capacity_and_a_paused_one_none() -> No
     """
     now = _NOW
     ledger = _live_ledger(now, 10)
-    open_snapshot = ledger.snapshot(now=now, effective_width=12, verdict="open")
+    open_snapshot = ledger.snapshot(
+        now=now, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     assert open_snapshot["worker_slots"] == 14
     for verdict in ("congested", "full"):
-        snapshot = ledger.snapshot(now=now, effective_width=12, verdict=verdict)
+        snapshot = ledger.snapshot(
+            now=now, effective_width=12, verdict=verdict, wait_bound_seconds=None
+        )
         assert snapshot["worker_slots"] == open_snapshot["worker_slots"]
-    paused = ledger.snapshot(now=now, effective_width=12, verdict="paused")
+    paused = ledger.snapshot(
+        now=now, effective_width=12, verdict="paused", wait_bound_seconds=None
+    )
     assert paused["worker_slots"] == 0
     assert paused["capacity"] == open_snapshot["capacity"]
 
@@ -509,7 +545,9 @@ def _session_ledger(
 def test_one_working_session_is_offered_the_whole_global_figure() -> None:
     """A session working alone takes the server, and the fair share is capacity."""
     ledger = _session_ledger(_NOW, workers={"A": 10})
-    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    snapshot = ledger.snapshot(
+        now=_NOW, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     assert snapshot["capacity"] == _CAPACITY
     assert snapshot["worker_slots"] == 14
     assert snapshot["active_sessions"] == 1
@@ -529,7 +567,9 @@ def test_two_working_sessions_divide_the_capacity_and_borrow_around_it() -> None
     session short of its share would have counted.
     """
     ledger = _session_ledger(_NOW, workers={"A": 3, "B": 5})
-    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    snapshot = ledger.snapshot(
+        now=_NOW, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     assert snapshot["worker_slots"] == 16
     assert snapshot["active_sessions"] == 2
     assert snapshot["fair_share"] == 12
@@ -569,7 +609,9 @@ def test_session_less_runs_form_one_unattributed_session() -> None:
     global figure of 24 - 3 = 21.
     """
     ledger = _session_ledger(_NOW, workers={None: 3})
-    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    snapshot = ledger.snapshot(
+        now=_NOW, effective_width=12, verdict="open", wait_bound_seconds=None
+    )
     assert snapshot["active_sessions"] == 1
     assert snapshot["sessions"] == {
         "unattributed": {"live_runs": 3, "worker_slots": 21}
@@ -664,10 +706,10 @@ def test_a_session_with_the_work_is_offered_the_slots_idle_sessions_leave() -> N
     the default margin sizes against: floor(1.5 * 8 / 0.75) = 16.
     """
 
-    ledger = _session_ledger(
-        _NOW, workers={"A": 6, "B": 1, "C": 2, "D": 1, "E": 1}
+    ledger = _session_ledger(_NOW, workers={"A": 6, "B": 1, "C": 2, "D": 1, "E": 1})
+    document = ledger.snapshot(
+        now=_NOW, effective_width=8, verdict="open", wait_bound_seconds=None
     )
-    document = ledger.snapshot(now=_NOW, effective_width=8, verdict="open")
 
     assert document["capacity"] == 16
     assert document["live_runs"] == 11
@@ -696,10 +738,10 @@ def test_a_reserve_per_session_leaving_nothing_for_the_queued_session() -> None:
     document's capacity, share and live runs, so a check that could only ever
     see one offer is not measuring the reserve.
     """
-    ledger = _session_ledger(
-        _NOW, workers={"A": 6, "B": 1, "C": 2, "D": 1, "E": 1}
+    ledger = _session_ledger(_NOW, workers={"A": 6, "B": 1, "C": 2, "D": 1, "E": 1})
+    document = ledger.snapshot(
+        now=_NOW, effective_width=8, verdict="open", wait_bound_seconds=None
     )
-    document = ledger.snapshot(now=_NOW, effective_width=8, verdict="open")
     assert document["fair_share"] == 3
     assert document["worker_slots"] == 5
 

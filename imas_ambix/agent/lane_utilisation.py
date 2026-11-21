@@ -486,6 +486,24 @@ def window_figures(
     }
 
 
+def percentile_or_none(values: Iterable[float], percentile: float) -> float | None:
+    """The nearest-rank percentile of *values*, or ``None`` when there are none.
+
+    This is the one nearest-rank estimator for the lane's figures: the gate's
+    wait bound is a percentile of the waits its own record holds, an evidence
+    script cuts the simulation's windows with it, and the simulation's own
+    ``_quantile`` defers to it, so a window read three ways agrees. A window
+    that admitted nothing has no figure to compare -- a zero there would read as
+    a lane that made nobody wait -- so the empty series reports ``None`` and the
+    callers that need a figure substitute their own zero.
+    """
+    ordered = sorted(values)
+    if not ordered:
+        return None
+    index = int(percentile * (len(ordered) - 1))
+    return ordered[min(max(index, 0), len(ordered) - 1)]
+
+
 def _rounded(value: object) -> float | None:
     return None if value is None else round(float(value), 1)
 

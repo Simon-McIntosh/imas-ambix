@@ -584,6 +584,7 @@ def test_lane_document_publishes_nonzero_gate_counts(tmp_path) -> None:
             "in_flight": 1,
             "paused": False,
             "reason": None,
+            "wait_bound_seconds": 30.0,
             "wait_seconds": 1.0,
             "waiting": 1,
             "width": 1,

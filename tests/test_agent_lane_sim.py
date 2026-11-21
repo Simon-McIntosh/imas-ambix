@@ -265,7 +265,15 @@ def test_measuring_duty_including_the_gate_wait_runs_the_pool_away() -> None:
     workers. The lane is run for eight hours so the drift is measured past
     where the rule without the wait settles.
     """
-    sim, _ = _rule_run("fed", 1.25, hours=RULE_HOURS * 2, duty_includes_wait=True)
+    # The bound is off: it is the rule's other failure that is measured here,
+    # and the bound's closure is what stops the runaway in a bounded lane.
+    sim, _ = _rule_run(
+        "fed",
+        1.25,
+        hours=RULE_HOURS * 2,
+        duty_includes_wait=True,
+        wait_bound_seconds=None,
+    )
     last_hour = sim.worker_ten_minute_means()[-6:]
     assert sum(last_hour) / len(last_hour) > RUNAWAY_WORKERS, last_hour
 

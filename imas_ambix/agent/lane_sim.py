@@ -34,15 +34,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN
+from imas_ambix.agent.lane_utilisation import DEFAULT_MARGIN, percentile_or_none
 from imas_ambix.agent.router import (
     ADMISSION_WINDOW_SECONDS,
     BORROW_RESERVE,
+    DEFAULT_WAIT_BOUND_SECONDS,
     _AdmissionLedger,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
     from pathlib import Path
     from typing import Any
 
@@ -159,10 +160,13 @@ def read_receipts(path: str | Path) -> list[ReceiptRow]:
 
 
 def _quantile(values: list[float], p: float) -> float:
-    ordered = sorted(values)
-    if not ordered:
-        return 0.0
-    return ordered[int(p * (len(ordered) - 1))]
+    """The p-quantile of *values*, an empty series reading as no wait at all.
+
+    The figure is the gate's own wait percentile, so this defers to the one
+    estimator rather than holding a second copy of the nearest-rank rule.
+    """
+    value = percentile_or_none(values, p)
+    return 0.0 if value is None else value
 
 
 def calibrate_rows(rows: Iterable[ReceiptRow], window: tuple[str, str]) -> Calibration:
@@ -313,6 +317,11 @@ class RunResult:
     workers: float
 
 
+def _steady(_t: float) -> float:
+    """The calibration's own workload, unchanged for the whole run."""
+    return 1.0
+
+
 class LaneSim:
     """One run of the lane: workers, the gate, and a slot rule.
 
@@ -340,6 +349,8 @@ class LaneSim:
         queue: int = 10**9,
         margin: float = DEFAULT_MARGIN,
         duty_includes_wait: bool = False,
+        wait_bound_seconds: float | None = DEFAULT_WAIT_BOUND_SECONDS,
+        think_scale: Callable[[float], float] | None = None,
         sessions: Mapping[str, Session] | None = None,
         per_session_reserve: bool = False,
     ) -> None:
@@ -357,6 +368,13 @@ class LaneSim:
         # over the live span including the gate wait, so a queued lane reads as
         # a light one and the rule admits without bound.
         self.duty_includes_wait = duty_includes_wait
+        # The gate's own wait bound, so the simulation exercises the router's
+        # closure rather than a copy of it. ``None`` is the negative control.
+        self.wait_bound_seconds = wait_bound_seconds
+        # How hard the workers ask at instant t: a fleet that starts running
+        # shorter turns offers more load, which is what a dropped think time
+        # models. The default is the calibration's own workload.
+        self.think_scale = think_scale if think_scale is not None else _steady
         # The counterfactual this section measures: the reserve held once for
         # every session below its share instead of once for the lane.
         self.per_session_reserve = per_session_reserve
@@ -387,6 +405,12 @@ class LaneSim:
         self.slots = 0
         self.capacity = 0
         self.waits: list[float] = []
+        # Each published admission document, so a window's slots and the reason
+        # they were shut can be read after the run rather than only at its end.
+        self.documents: list[dict[str, object]] = []
+        # Every admitted request's wait with the instant it was admitted, which
+        # is the record a five-minute window's percentile is cut from.
+        self.wait_events: list[tuple[float, float]] = []
         self.level_time: collections.Counter[int] = collections.Counter()
         self.live_time = 0.0
         # The rule's worker count in ten-minute buckets after the warm-up, so a
@@ -472,9 +496,20 @@ class LaneSim:
             # publishes count the runs the lane-wide figure counts.
             waiting_sessions=[session for _, session in self.launching],
             duty_includes_wait=self.duty_includes_wait,
+            wait_bound_seconds=self.wait_bound_seconds,
         )
         self.capacity = int(snapshot["capacity"] or 0)
         self.slots = int(snapshot["worker_slots"])
+        self.documents.append(
+            {
+                "t": self.t,
+                "worker_slots": self.slots,
+                "capacity": self.capacity,
+                "live_runs": snapshot["live_runs"],
+                "gate_wait_p90_seconds": snapshot["gate_wait_p90_seconds"],
+                "worker_slots_reason": snapshot["worker_slots_reason"],
+            }
+        )
         # Each session launches only from the offer the document makes it: the
         # per-session figure when the document names the session, and the
         # new-session figure when it does not yet see it working.
@@ -595,7 +630,9 @@ class LaneSim:
                     arrived=float(state["arrived"]),
                 )
                 if self.t > WARM_UP_S:
-                    self.waits.append(self.t - float(state["arrived"]))
+                    waited = self.t - float(state["arrived"])
+                    self.waits.append(waited)
+                    self.wait_events.append((self.t, waited))
             rate = self.rate_at(len(self.in_service)) if self.in_service else 0.0
             for worker in list(self.in_service):
                 state = self.workers[worker]
@@ -611,7 +648,9 @@ class LaneSim:
                     if interval is not None:
                         self.ledger.release(interval, now=self.t)
                     state["state"] = "think"
-                    state["until"] = self.t + self.rng.choice(self.calibration.think)
+                    factor = self.think_scale(self.t)
+                    think = self.rng.choice(self.calibration.think) * factor
+                    state["until"] = self.t + think
             if self.t > WARM_UP_S:
                 self.level_time[len(self.in_service)] += DT
                 self.live_time += len(self.workers) * DT
