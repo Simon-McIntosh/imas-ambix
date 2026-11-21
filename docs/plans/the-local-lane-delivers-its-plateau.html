@@ -21,11 +21,11 @@
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="local-lane-admission-control">
   <meta name="plan-section-depends-on" content="{&quot;s4&quot;:[&quot;the-local-lane-delivers-its-plateau#s3&quot;],&quot;s5&quot;:[&quot;the-local-lane-delivers-its-plateau#s4&quot;],&quot;s7&quot;:[&quot;the-local-lane-delivers-its-plateau#s6&quot;],&quot;s8&quot;:[&quot;the-local-lane-delivers-its-plateau#s5&quot;,&quot;the-local-lane-delivers-its-plateau#s6&quot;,&quot;the-local-lane-delivers-its-plateau#s9&quot;],&quot;s9&quot;:[&quot;the-local-lane-delivers-its-plateau#s4&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
   <title>The Local Lane Delivers Its Plateau | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="32">
+<meta name="plan-version" content="33">
 <meta name="plan-modified" content="2026-11-21">
 </head>
 <body>
@@ -112,6 +112,10 @@
     <h2 id="s10">§10 — The default admission margin stays 1.5</h2>
 <section data-reckon="section" data-id="s10" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section>
 <p><strong>Decision.</strong> The default admission margin stays 1.5. On 2026-11-20 a default of 1.25 was proposed, to queue less at the router. Section 4 had already measured it: at 1.25 the rule delivers 95.9% of the plateau on the starved workload, below the 97% that section 4 requires at the default margin. On 2026-11-21 the lead kept 1.5. A deployment can still set 1.25 in the gate's control file.</p><p><strong>Nothing is built under this section.</strong> It records the decision so the question is not reopened without a new measurement.</p>
+
+    <h2 id="s11">§11 — The serve registry lives under home</h2>
+<section data-reckon="section" data-id="s11" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<p><strong>Why.</strong> The serve registry was kept in the project data tree and was lost with it on 2026-11-19. Nothing noticed, because the endpoint document was not rewritten until the router restart of 2026-11-21, whose own republish found no registration and published a document with no engine and no router address. On 2026-11-21 the lead decided the registry lives under home, with the rest of the operator state.</p><p><strong>Endpoint.</strong> The site's registry directory is under the operator's home state directory. A publish that finds no registration while a serve job is running does not replace a document that names engines with an empty one; it keeps the document and says why. Launchers generated after the change write and read the new location, and the live engine's registration is carried over so no restart is needed to pick it up.</p><p><strong>Done when.</strong> A new test, <code>tests/test_agent_registry_lives_under_home.py</code>, shows the default registry directory resolves under the home state directory and not under the site's base directory, that a generated serve script and a generated router script name that directory, and that a publish with a running serve job and an empty registry leaves an existing non-empty document unchanged and reports the reason. Negative control: with the directory resolved from the base directory, the first assertion fails; with the guard removed, the publish writes an empty document.</p><p>Write paths: <code>imas_ambix/agent/registry.py</code>, <code>imas_ambix/agent/profile.py</code>, <code>imas_ambix/agent/slurm.py</code>, <code>imas_ambix/agent/AGENTS.md</code>, <code>tests/test_agent_registry_lives_under_home.py</code>, <code>docs/evidence/fragments/the-local-lane-delivers-its-plateau/s11.html</code>.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
