@@ -255,6 +255,14 @@ GATE_CONTROLLER_WIDTH_FLOOR = 4
 # window long enough to hold a fleet's turn cadence.
 DEFAULT_WAIT_BOUND_SECONDS = 30.0
 WAIT_BOUND_WINDOW_SECONDS = 300.0
+# The gate re-opens only when the windowed wait has fallen to this fraction of
+# the bound. The window remembers a burst for five minutes, so a gate that
+# re-opens as soon as the figure touches the bound admits a fresh batch into a
+# record that still holds the last one's waits, and the next window's p90
+# overshoots the bound it was meant to hold. The band costs throughput at the
+# margin and buys the bound the headroom it needs to be a ceiling rather than
+# an oscillation.
+WAIT_BOUND_RESUME_FRACTION = 0.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -400,6 +408,10 @@ class _AdmissionLedger:
         self._intervals: list[_BusyInterval] = []
         self._pauses: list[tuple[float, float | None]] = []
         self._first_admission: float | None = None
+        # Whether the wait bound is holding the gate shut. It is state rather
+        # than a reading of the latest figure, because the closure is entered at
+        # the bound and left at the resume fraction.
+        self._wait_closed = False
 
     def admit(
         self,
@@ -554,7 +566,15 @@ class _AdmissionLedger:
         ``wait_bound_seconds`` is the 90th-percentile gate wait, over the last
         five minutes of this record, above which the gate offers no new run at
         all: the slots are zeroed and ``worker_slots_reason`` names the wait.
-        ``None`` disables the bound, which is the simulation's negative control.
+        The closure is left only when that figure falls to
+        ``WAIT_BOUND_RESUME_FRACTION`` of the bound, because the window still
+        holds the burst that caused it and a gate re-opened at the bound
+        admits the next batch into the same record. The bound also caps the
+        capacity the margin asked for: the pool is scaled down in proportion to
+        the wait it produced, and to the pool a request span can serve inside
+        the bound, so a burst the load model did not foresee shrinks the pool by
+        the size of the wait it caused. ``None`` disables the bound, which is
+        the simulation's negative control.
         The one field carries both closures -- ``paused`` and ``gate_wait`` --
         so a reader can say why slots are shut without learning two vocabularies.
         """
@@ -629,7 +649,8 @@ class _AdmissionLedger:
         }
         for run in {run for run in waiting_runs if run} - live_runs_seen:
             live_sessions.setdefault(
-                known_session.get(run) or UNATTRIBUTED_SESSION, set()).add(run)
+                known_session.get(run) or UNATTRIBUTED_SESSION, set()
+            ).add(run)
         # ``waiting_count`` is the same claim for runs the caller cannot name --
         # a launched worker with no request yet -- so its sessions, when the
         # caller knows them, are the sessions those runs belong to.
@@ -656,13 +677,19 @@ class _AdmissionLedger:
             ),
             0.9,
         )
+        if wait_bound_seconds is None:
+            self._wait_closed = False
+        elif gate_wait_p90 is None:
+            # Nothing was admitted in the window, so nothing is waiting: the
+            # record cannot hold the closure open on an empty window.
+            self._wait_closed = False
+        elif gate_wait_p90 > wait_bound_seconds:
+            self._wait_closed = True
+        elif gate_wait_p90 <= wait_bound_seconds * WAIT_BOUND_RESUME_FRACTION:
+            self._wait_closed = False
         if verdict == "paused":
             closed_reason: str | None = "paused"
-        elif (
-            wait_bound_seconds is not None
-            and gate_wait_p90 is not None
-            and gate_wait_p90 > wait_bound_seconds
-        ):
+        elif self._wait_closed:
             closed_reason = "gate_wait"
         else:
             closed_reason = None
@@ -691,6 +718,45 @@ class _AdmissionLedger:
             margin=margin,
             include_gate_wait=duty_includes_wait,
         )
+        if capacity is not None and wait_bound_seconds is not None:
+            # The margin sizes the pool for throughput, and a pool above what
+            # the width can serve inside the bound queues for the rest of it:
+            # ``n`` runs against a width ``w`` leave ``n - w`` waiting while one
+            # request's span passes, so the pool's own wait is
+            # ``(n - w)`` spans in ``w`` slots. Solving that for the bound gives
+            # the largest pool the bound allows, and no margin may exceed it.
+            # This is the load model's own prediction, so it applies whether or
+            # not the wait is above the bound yet: a pool grown now is what the
+            # next burst has to wait behind.
+            spans = [
+                max(
+                    0.0,
+                    (now if interval.ended is None else interval.ended)
+                    - interval.admitted,
+                )
+                for interval in live_intervals
+            ]
+            span = sum(spans) / len(spans) if spans else 0.0
+            if span > 0.0:
+                implied = int(
+                    math.floor(effective_width * (1.0 + wait_bound_seconds / span))
+                )
+                capacity = min(capacity, max(0, implied))
+            if (
+                gate_wait_p90 is not None
+                and gate_wait_p90 > 0.0
+                and gate_wait_p90 > wait_bound_seconds * WAIT_BOUND_RESUME_FRACTION
+            ):
+                # The pool the lane is actually holding waited for the figure
+                # the record shows, so the pool whose wait the bound allows is
+                # that count scaled down in proportion. This is feedback from
+                # the wait the lane measured on itself, not from the load
+                # model, so a burst that the model did not foresee shrinks the
+                # pool by the size of the wait it produced. It is read from
+                # the release waterline up: a lane whose wait is trivial is
+                # not made to shed slots for it.
+                scaled = int(math.floor(live_runs * wait_bound_seconds / gate_wait_p90))
+                capacity = min(capacity, max(0, scaled))
         if (
             live_runs < self._min_live_runs
             or not history_ready
