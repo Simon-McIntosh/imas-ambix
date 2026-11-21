@@ -1,0 +1,134 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "Derived from the run's own revision-keyed gate logs: after suite at c43a0da1 is 89 passed, EXIT=0 (logs/seed-gate-fixed.log; logs/margin-final-ten-seeds.log repeats 89 passed, GATE_EXIT=0); the merged four-suite baseline at 50ea2595 is 80 passed, EXIT=0 (logs/merge-gate.log). No failing id in either arm, so added_failure_count is 0 and added_failure_ids is empty.",
+  "assertion_review": [
+    {
+      "assertion": "tests/test_agent_lane_wait_bound.py:63-72 at_bound/under/roomy/over field values",
+      "conditions_for_failure": "If snapshot stopped zeroing worker_slots above the bound, or named the reason wrongly, or published p90 from another window, the exact 30.0/29.9/30.1 and 'gate_wait' comparisons redden. The expected values are hard-coded, independent of the code under test."
+    },
+    {
+      "assertion": "tests/test_agent_lane_wait_bound.py:88-91 set(differences) == {'worker_slots_reason'}",
+      "conditions_for_failure": "If a paused gate and a wait-closed gate diverged in any field other than the reason, the set comparison reddens; asserted against an independently constructed pair of documents."
+    },
+    {
+      "assertion": "tests/test_agent_lane_wait_bound.py:195-199 assert max(settled) < 45.0",
+      "conditions_for_failure": "Removing or weakening the bound makes the bounded arm equal the bound-disabled arm, which reaches 47.0 s (seed 0), 54.5 s (seed 1), 53.75 s (seed 2) and 49.5 s (seed 4) in logs/margin-final-ten-seeds.log, so those parameterisations redden. The window percentile is cut by the test's own _rank_p90, not by percentile_or_none, so a regression in the shared estimator cannot move both sides."
+    },
+    {
+      "assertion": "tests/test_agent_lane_wait_bound.py:205-211 assert closed and all closed slots == 0 and unbounded names no reason",
+      "conditions_for_failure": "If the closure never fired, assert closed reddens; if a closed document published non-zero slots, the all() reddens; if the unbounded arm named a reason, the last assertion reddens."
+    },
+    {
+      "assertion": "tests/test_agent_lane_wait_bound.py:214-230 assert len(logged) == 1",
+      "conditions_for_failure": "Removing self._last_logged_settings = settings at router.py:1264 makes the second settings() call log again, so len(logged) reads 2 and this reddens; this is the prior review's blocking finding, now guarded."
+    }
+  ],
+  "call_sites": [
+    "imas_ambix/agent/router.py:1200 (_GenerationGate.admission_document -> _AdmissionLedger.snapshot passing settings.wait_bound_seconds)",
+    "imas_ambix/agent/router.py:1065 (snapshot call inside the gate's admission document)",
+    "imas_ambix/agent/router.py:3297 (_gate_fields publishing the admission block, worker_slots and worker_slots_reason, into the lane document)",
+    "imas_ambix/agent/router.py:3264 (gate.admission_document() in the publish path)",
+    "imas_ambix/agent/lane_sim.py:460-499 (the simulation's ledger snapshot carrying wait_bound_seconds)"
+  ],
+  "completed_at": "2026-11-21T15:51:23.881Z",
+  "dispatched_at": "2026-11-21T15:28:02Z",
+  "evidence_limits": [
+    "The reviewed manifest declares no baseline_suite or after_suite keys; the pair recorded above is taken from its two revision-keyed four-suite gate logs (merge-gate.log at 50ea2595 and seed-gate-fixed.log at the head c43a0da1), both green, so added_failure_count is 0 whichever arm is taken as the base.",
+    "logs/seed-gate.log (ecb8157b) and logs/seed-gate-head.log (58eaa680) carry 7 failed at the tightened test before c43a0da1 repaired the rule; these are this node's own intermediate red arm, not added failures against the base, because the head arm at c43a0da1 is green.",
+    "The negative control (bound-disabled arm exceeds 45 s) holds on only 4 of 10 seeds at margin 2.6, which the fragment records; the plan's pass condition is the bounded arm and it is asserted, but the disabled-arm crossing is not."
+  ],
+  "findings": [
+    {
+      "file": "tests/test_agent_lane_wait_bound.py",
+      "line": "189",
+      "severity": "non-blocking",
+      "text": "The negative control is no longer asserted. Commit 50ea2595 removed `assert max(unbounded_p90) > 45.0`; the head test computes unbounded_p90 only for the failure message and asserts just the bounded arm, so at margin 2.6 the bound-disabled arm crosses 45 s on seeds 0, 1, 2 and 4 only. On seeds 3, 5, 6, 7, 8 and 9 the bounded arm's `< 45 s` passes whether or not the bound does anything that changes the maximum, so for those seeds the test cannot distinguish a working bound from an absent one. The closure assertion (`assert closed`) does fire on every seed, which partly compensates. The fragment records the per-seed crossing honestly, so the pass condition (the bounded arm) is still asserted; this is a weaker negative control than the plan's done-when names, not a false claim."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/s5.html",
+      "line": "51",
+      "severity": "non-blocking",
+      "text": "The fragment's `Logs:` line cites logs/margin-seeds.log, logs/s5-probe-early3.log and logs/s5-gate.log, but none of these carries the ten-seed margin-2.6 figures the table shows. margin-seeds.log is at revision 4f148397 at margins 2.7 and 2.8 (seed 1 bounded 45.25 s at 2.7, 48.25 s at 2.8), and s5-probe-early3.log is the base-revision early-think probe at 35.25 s; the table's seed 0 (unbounded 47.00 s, bounded 34.50 s) matches logs/margin-final-ten-seeds.log at margin 2.6. A reader following the citation reaches numbers that disagree with the table. The correct log is recorded in the reviewed manifest's test_logs and seed_gate_log; the citation, not the measurement, is wrong."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read the nine worker commits one by one; the source change is the wait bound in _AdmissionLedger.snapshot (router.py:672-758), the one reason field, the shared percentile in lane_utilisation.py:489, the simulation passing the bound through the ledger (lane_sim.py:499), and the tests and fragment; the intermediate arms at ecb8157b/58eaa680 are the tightened test red at 7 failed and are repaired at c43a0da1.",
+    "done_when": "The plan \u00a75 done-when is the high-margin simulation at which the bound-disabled arm exceeds 45 s in some window and the bounded arm stays under it in every settled window, plus a unit test of the fields at, under and over the bound; tests/test_agent_lane_wait_bound.py:186-211 asserts the bounded arm per seed over the fixed ten-seed set and the field tests sit at lines 47-108, and logs/seed-gate-fixed.log records 89 passed, EXIT=0 at c43a0da1.",
+    "goal": "The node's goal (plan \u00a75) is that the published slot figure cannot keep admitting into a gate whose five-minute 90th-percentile wait exceeds a bound set in the control file (30 s default), zeroing worker_slots and naming the wait through the one reason field; router.py:672-708 publishes gate_wait_p90_seconds and closed_reason, and router.py:1200 _slot_count zeroes the slots when the reason is set.",
+    "manifest": "Read; it declares no baseline_suite or after_suite keys, so the added-failure count is derived from the revision-keyed gate logs it does cite (logs/seed-gate-fixed.log at c43a0da1, 89 passed EXIT=0) against the merged four-suite arm in the same lineage (logs/merge-gate.log at 50ea2595, 80 passed EXIT=0).",
+    "write_paths": "The node's own commits touch only imas_ambix/agent/router.py, imas_ambix/agent/lane_utilisation.py, imas_ambix/agent/lane_sim.py, tests/test_agent_lane_wait_bound.py, tests/test_agent_lane_sim.py, tests/test_agent_router_gate.py and docs/evidence/fragments/the-local-lane-delivers-its-plateau/s5.html, all inside the declared paths; the plan and docs/state files in the range arrive through the merge commit 88e661a5, not the node."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_lane_wait_bound.py:195 reddens if the bound stops holding a settled window (seeds 0, 1, 2 and 4 would exceed 45 s unbound) and line 205 reddens if the closure stops firing, but the bound-disabled arm is computed only for the message and never asserted.",
+    "evidence": "logs/seed-gate-fixed.log records '89 passed ... EXIT=0' at c43a0da1 for the exact four-suite command in the manifest, and logs/margin-final-ten-seeds.log carries the per-seed bounded and unbounded maxima the fragment's table reproduces, so the measure is recorded rather than claimed.",
+    "fit": "The change extends _AdmissionLedger.snapshot in the idiom of the surrounding capacity and slot code (router.py:672), names the mechanism (WAIT_BOUND_RESUME_FRACTION, gate_wait_p90_seconds) rather than any plan label, and keeps the one-reason-field vocabulary the section requires.",
+    "goal_fidelity": "router.py:686-708 sets closed_reason to gate_wait above the bound and _slot_count at router.py:854 returns 0 when it is set, so a long wait closes the slots through the one reason field the goal names.",
+    "reuse": "lane_utilisation.percentile_or_none (lane_utilisation.py:489) is the single nearest-rank estimator the gate (router.py:35,672) and the simulation (lane_sim.py:168) both call; the search over imas_ambix/agent found bench_report._percentile (nearest-rank, different formula, different subsystem) and receipt_bins.inclusive_quantile (interpolated), neither an owner of the lane's gate-wait percentile.",
+    "scope_discipline": "Every path in the worker's own commits (router.py, lane_utilisation.py, lane_sim.py, the three test files, s5.html) is inside the declared write paths; the plan and docs/state files in the range enter only via the merge commit 88e661a5."
+  },
+  "project": "imas-ambix",
+  "raw_text": "REVIEWED_BASE_SHA: 9c2be60477ecd2e50bd57d05a8009b92b39cefd9\nREVIEWED_HEAD_SHA: c43a0da133e994bf3e4c433cdc27409f26b8c287\nVERDICT goal: plan \u00a75's goal is to close the published slots while the five-minute gate wait exceeds a control-file bound; router.py:672-708 publishes gate_wait_p90_seconds and the one reason field, and router.py:854 _slot_count zeroes the slots.\nVERDICT done_when: the plan \u00a75 measure (high-margin simulation, bound-disabled arm over 45 s, bounded arm under it) is asserted per seed in tests/test_agent_lane_wait_bound.py:186-211 with an independently cut percentile.\\\\nVERDICT write_paths: the node's own commits touch only imas_ambix/agent (router.py, lane_utilisation.py, lane_sim.py), tests/test_agent_lane_wait_bound.py, tests/test_agent_lane_sim.py, tests/test_agent_router_gate.py and docs/evidence/fragments/.../s5.html, all inside the declared paths.\nVERDICT manifest: read; no baseline_suite/after_suite keys, so added failures are derived from logs/seed-gate-fixed.log (89 passed, EXIT=0 at head) against logs/merge-gate.log (80 passed, EXIT=0 at 50ea2595).\nVERDICT diff: read all nine worker commits; the bound, field and estimator change is in router.py and lane_utilisation.py, the simulation passes the bound through the ledger, and the intermediate red arms at ecb8157b/58eaa680 are repaired at c43a0da1.\nCALL_SITES: imas_ambix/agent/router.py:1200, imas_ambix/agent/router.py:1065, imas_ambix/agent/router.py:3297, imas_ambix/agent/router.py:3264, imas_ambix/agent/lane_sim.py:460\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: router.py:686-708 names gate_wait above the bound and _slot_count at router.py:854 returns 0 when it is set.\nSCORE evidence: 15\nJUSTIFICATION evidence: logs/seed-gate-fixed.log records 89 passed, EXIT=0 at c43a0da1 for the manifest's exact command, and logs/margin-final-ten-seeds.log carries the per-seed arms the fragment tabulates.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in the node's own commits is inside the declared write paths; plan and docs/state files enter only via merge 88e661a5.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_lane_wait_bound.py:195 reddens if the bound stops holding the settled windows, but the negative control at line 189 is computed only for the message and never asserted.\nSCORE fit: 18\nJUSTIFICATION fit: the bound extends _AdmissionLedger.snapshot at router.py:672 in the idiom of the surrounding capacity code and names the mechanism, not any plan label.\nSCORE reuse: 18\nJUSTIFICATION reuse: lane_utilisation.py:489 is the one nearest-rank estimator the gate (router.py:672) and lane_sim._quantile (lane_sim.py:168) both call; the searched neighbours are not owners of the lane's gate-wait figure.\nFINDING tests/test_agent_lane_wait_bound.py:189 non-blocking: the bound-disabled negative control is no longer asserted and crosses 45 s on only 4 of 10 seeds, so six seeds cannot show the bound was needed.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/s5.html:51 non-blocking: the fragment's Logs line cites logs that carry different figures than the table (margin 2.6 run is logs/margin-final-ten-seeds.log).",
+  "reuse_search": {
+    "capabilities": [
+      "nearest-rank percentile over a list of waits",
+      "gate-slot closure with one reason field",
+      "capacity capped by a measured wait"
+    ],
+    "judgement": "The node hoisted one estimator, lane_utilisation.percentile_or_none, and made the gate bound, the evidence window and lane_sim._quantile all call it, so the lane's percentile has a single owner. The nearest-rank helpers that exist elsewhere (bench_report._percentile, data/probe._percentile) are module-private in unrelated subsystems with different formulas (int(n*q) and round-based) and are not the owner of the lane's gate-wait figure; receipt_bins.inclusive_quantile is interpolated, not nearest-rank. The closure and the wait-scaled capacity extend _AdmissionLedger, which already owns capacity and slots; no second closure mechanism was added.",
+    "searched": [
+      "imas_ambix/agent/lane_callers.py:661 _bin_percentile",
+      "imas_ambix/agent/bench_report.py:264 _percentile",
+      "imas_ambix/agent/receipt_bins.py:291 inclusive_quantile",
+      "imas_ambix/data/probe.py:262 _percentile"
+    ]
+  },
+  "review_run_id": "r-20261121T152740890890-review-of-llp-a-long-gate-wait-closes-the-slots-c43a0da133e9",
+  "reviewed_base_sha": "9c2be60477ecd2e50bd57d05a8009b92b39cefd9",
+  "reviewed_head_sha": "c43a0da133e994bf3e4c433cdc27409f26b8c287",
+  "reviewed_run_id": "r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots",
+  "reviewed_worker_commits": [
+    "4f1483976052d4639cd302a0d9a302e8b30a7133",
+    "94d0c850f8a399acb04423d7c313b49c73d19142",
+    "320c4237772cf418580fb3b3bc2dc38d068c89e6",
+    "cd8ea00a83035effd0de9b8317f753819b224f30",
+    "88e661a52bf3596bda67282c2a09552f46400d26",
+    "50ea259512414d9de94998c427d1b344e33bd237",
+    "ecb8157be6dbede7965981a47932ce95c6f8a0a7",
+    "58eaa6808079303536e31af6c3a792d6a808d254",
+    "c43a0da133e994bf3e4c433cdc27409f26b8c287"
+  ],
+  "scope_provenance": "Reviewed the whole node from base 9c2be604 to head c43a0da1 because the two prior review records in this run (at f3141903 and at cd8ea00a) predate the merge commit 88e661a5 and the four commits after it (50ea2595, ecb8157b, 58eaa680, c43a0da1); the head c43a0da1 is detached and not yet in main, so the tree was read through git show rather than the worktree checkout.",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "suite_evidence": {
+    "after_suite": {
+      "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_wait_bound.py tests/test_agent_lane_sim.py tests/test_agent_router_gate.py tests/test_agent_router_worker_slots.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots/logs/seed-gate-fixed.log",
+      "revision": "c43a0da133e994bf3e4c433cdc27409f26b8c287"
+    },
+    "baseline_suite": {
+      "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_lane_sim.py tests/test_agent_lane_wait_bound.py tests/test_agent_router_gate.py tests/test_agent_router_worker_slots.py",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261118T103459740415-llp-a-long-gate-wait-closes-the-slots/logs/merge-gate.log",
+      "revision": "50ea259512414d9de94998c427d1b344e33bd237"
+    }
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-11-21T15:51:45.479085+00:00",
+  "total": 104
+}
