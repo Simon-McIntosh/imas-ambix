@@ -10,7 +10,6 @@ from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING
 
-from imas_ambix.agent.registry import registration_directory
 from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 
 if TYPE_CHECKING:
@@ -594,7 +593,7 @@ def generate_serve_script(
     registry_write = (
         f"-m imas_ambix.agent.registry write{held_option}{server_option}"
     )
-    registry_dir = registration_directory(site.base_dir)
+    registry_dir = site.serve_registry_dir
     registry_python = site.python_path(profile.engine.type)
     checkpoint_precision = profile.model.checkpoint_precision or "unknown"
     # The checkpoint this serve loads, as ``<hf_repo>@<revision>``. The served
@@ -939,7 +938,8 @@ def generate_serve_script(
                 # release whose origin is exiting.
                 PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
                     "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry publish \
-                    --directory "$_REGISTRY_DIR" || true
+                    --directory "$_REGISTRY_DIR" \
+                    --released-job-id "$SLURM_JOB_ID" || true
             fi
         }}
 
@@ -1189,13 +1189,18 @@ def generate_router_script(
         f'echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"'
     )
     registry_python = shlex.quote(str(site.python_path("vllm")))
+    registry_dir = site.serve_registry_dir
     body_lines += [
         "",
         "# The router's address is published, not fixed: consumers read it from",
         "# the endpoint document, so it is republished when this router answers",
         "# and again when it exits, wherever the scheduler placed the job.",
+        "# The registry directory is named rather than defaulted so the publish",
+        "# reads the same directory the serve scripts wrote, whatever state",
+        "# directory the job's own environment resolves.",
         "publish_address() {",
-        f"    {registry_python} -m imas_ambix.agent.registry publish || true",
+        f"    {registry_python} -m imas_ambix.agent.registry publish"
+        f" --directory {shlex.quote(str(registry_dir))} || true",
         "}",
         "",
         f"{command} &",

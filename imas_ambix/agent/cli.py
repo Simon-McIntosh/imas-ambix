@@ -1183,50 +1183,56 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
         raise click.ClickException(cancel_result.stderr.strip() or "scancel failed")
     console.print(f"[green]Cancelled {len(job_ids)} job(s).[/]")
     _remove_cancelled_registrations(site, job_ids)
-    _republish_endpoint_document(site)
+    _republish_endpoint_document(site, released_jobs=job_ids)
 
 
 # -- Published endpoint document ---------------------------------------------
 
 
-def _republish_endpoint_document(site: SiteConfig) -> Path | None:
+def _republish_endpoint_document(
+    site: SiteConfig, released_jobs: Sequence[str] = ()
+) -> Path | None:
     """Rebuild the public endpoint document from the shared serve registry.
 
     Reads every serve registration, retains only endpoints that answer an
     anonymous catalog probe, qualifies router origins that cover the released
-    models, and atomically rewrites the document. Best-effort: a registry or
-    scheduler fault cannot undo a serve that has already been submitted or
-    cancelled, so the fault is reported as a warning and the command completes.
+    models, and atomically rewrites the document. A publish that finds no
+    registration while a serve is running keeps the document it would have
+    erased and reports why. Best-effort: a registry or scheduler fault cannot
+    undo a serve that has already been submitted or cancelled, so the fault is
+    reported as a warning and the command completes.
     """
     from imas_ambix.agent.registry import (
         _fetch_anonymous_catalog,
-        build_endpoint_document,
         discover_routing_origins,
-        read_registrations,
-        registration_directory,
-        write_endpoint_document,
+        publish_registrations,
     )
 
     try:
-        registrations = read_registrations(
-            registration_directory(site.base_dir),
-            job_is_running=lambda _job_id: True,
-        ).current
-        endpoints = build_endpoint_document(
-            registrations,
+        jobs = _running_jobs(site)
+        result = publish_registrations(
+            site.serve_registry_dir,
+            site.endpoint_document,
+            running_jobs=[job["jobid"] for job in jobs],
             fetch_catalog=_fetch_anonymous_catalog,
             servers=site.declared_servers,
-        )
-        return write_endpoint_document(
-            endpoints,
-            site.endpoint_document,
-            routing_origins=discover_routing_origins(endpoints, _running_jobs(site)),
+            routing_origins_for=lambda endpoints: discover_routing_origins(
+                endpoints, jobs
+            ),
+            released_jobs=released_jobs,
+            # Every record is kept here and the origin probe decides: a serve
+            # submitted a moment ago may not be listed yet, and dropping its
+            # record would publish a document that omits it.
+            keep_unlisted_records=True,
         )
     except (OSError, ValueError, click.ClickException) as error:
         console.print(
             f"[yellow]warning: could not republish the endpoint document: {error}[/]"
         )
         return None
+    if result.reason is not None:
+        console.print(f"[yellow]warning: {result.reason}[/]")
+    return result.path
 
 
 def _remove_cancelled_registrations(site: SiteConfig, job_ids: Sequence[str]) -> None:
@@ -1236,12 +1242,9 @@ def _remove_cancelled_registrations(site: SiteConfig, job_ids: Sequence[str]) ->
     hard kill or node drain can skip the trap; removing the record here too
     (idempotently) guarantees the next republish drops the release.
     """
-    from imas_ambix.agent.registry import (
-        registration_directory,
-        remove_registration,
-    )
+    from imas_ambix.agent.registry import remove_registration
 
-    directory = registration_directory(site.base_dir)
+    directory = site.serve_registry_dir
     for job_id in job_ids:
         remove_registration(job_id, directory)
 
@@ -1347,12 +1350,11 @@ def _placement_of_running_serve(
         return None
     from imas_ambix.agent.registry import (
         read_registrations,
-        registration_directory,
         server_for_registration,
     )
 
     records = read_registrations(
-        registration_directory(site.base_dir),
+        site.serve_registry_dir,
         job_is_running=lambda _job_id: True,
     ).current
     record = next((item for item in records if item.job_id == job_id), None)
@@ -1592,10 +1594,10 @@ def _router_auth_header(api_key: str | None) -> tuple[str, str] | None:
 
 def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Upstream]:
     """Prefer probe-qualified registrations, then add scheduler-only routes."""
-    from imas_ambix.agent.registry import read_registrations, registration_directory
+    from imas_ambix.agent.registry import read_registrations
     from imas_ambix.agent.router import Upstream
 
-    directory = registration_directory(site.base_dir)
+    directory = site.serve_registry_dir
     records = read_registrations(directory, job_is_running=lambda _job_id: True).current
     running_ids: set[str] | None = None
     if records:
@@ -2766,7 +2768,7 @@ def _execute_restart_cycle(
     import time
 
     from imas_ambix.agent import reload as reload_module
-    from imas_ambix.agent.registry import registration_directory, release_registration
+    from imas_ambix.agent.registry import release_registration
     from imas_ambix.agent.slurm import submit_script
 
     lane_path = Path(site.endpoint_document).with_name("lane.json")
@@ -2909,7 +2911,7 @@ def _execute_restart_cycle(
                         ready=is_ready,
                         validate=validate,
                         release=lambda job_id: release_registration(
-                            job_id, registration_directory(site.base_dir)
+                            job_id, site.serve_registry_dir
                         ),
                         confirm=lambda job_id: validate(job_id, routed=True),
                         read_old_running=lambda timeout: _engine_running_requests(

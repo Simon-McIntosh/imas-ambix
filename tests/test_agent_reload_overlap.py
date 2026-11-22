@@ -24,7 +24,7 @@ def test_shutdown_refuses_overlap_unless_all(monkeypatch, cancel_all):
     monkeypatch.setattr(cli, "_profile_jobs", lambda *_: jobs)
     monkeypatch.setattr(cli.subprocess, "run", command)
     monkeypatch.setattr(cli, "_remove_cancelled_registrations", lambda *_: None)
-    monkeypatch.setattr(cli, "_republish_endpoint_document", lambda *_: None)
+    monkeypatch.setattr(cli, "_republish_endpoint_document", lambda *_a, **_k: None)
     result = CliRunner().invoke(
         main,
         ["agent", "shutdown", "sample", "--yes"] + (["--all"] if cancel_all else []),
@@ -323,7 +323,7 @@ def bound_restart(tmp_path, monkeypatch):
         metrics_requests=[],
         record_path=tmp_path / "lane-cycles.jsonl",
     )
-    directory = registry.registration_directory(site.base_dir)
+    directory = registry.registration_directory()
     (tmp_path / "lane.json").write_text(
         json.dumps(
             {
@@ -422,7 +422,9 @@ def bound_restart(tmp_path, monkeypatch):
         urllib.request, "build_opener", lambda handler: SimpleNamespace(open=completion)
     )
     monkeypatch.setattr(
-        cli, "_republish_endpoint_document", lambda *_: world.events.append("publish")
+        cli,
+        "_republish_endpoint_document",
+        lambda *_a, **_k: world.events.append("publish"),
     )
     monkeypatch.setattr(cli, "_pause_gate", lambda *_: world.events.append("pause"))
     monkeypatch.setattr(cli, "_resume_gate", lambda *_: world.events.append("resume"))

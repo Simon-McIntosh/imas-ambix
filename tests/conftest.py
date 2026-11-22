@@ -36,6 +36,18 @@ def _no_production_gate_control_path(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _isolated_state_home(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Keep every test off the operator's real state directory.
+
+    The serve registry, the gate file's copy and the retention manifests all
+    resolve under ``XDG_STATE_HOME``. A test that registered a serve without an
+    override would write a record into the live operator state directory, where
+    the next publish would read it as a running serve.
+    """
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+
+@pytest.fixture(autouse=True)
 def _isolated_index_snapshots(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Give every test its own snapshot directory, including ingest commands."""
     monkeypatch.setattr(index_placement, "SNAPSHOT_DIR", tmp_path / "index-snapshots")

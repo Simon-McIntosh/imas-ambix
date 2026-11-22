@@ -938,6 +938,23 @@ class SiteConfig(BaseModel):
         return Path(self.base_dir) / "agents" / "openrouter-prices.json"
 
     @property
+    def serve_registry_dir(self) -> Path:
+        """Where running serves register, under the operator's state directory.
+
+        A site's base directory holds model weights and shared launch
+        artifacts, and it is a tree an operator reclaims as a whole. A
+        registration living inside it disappears with the tree, leaving the
+        next publish with nothing to name -- which is how an endpoint document
+        naming a live engine came to be replaced by an empty one. The registry
+        is therefore resolved from the operator's own state directory, not
+        from the site, and the resolver lives in the registry module so every
+        writer and reader holds the same spelling.
+        """
+        from imas_ambix.agent.registry import registration_directory
+
+        return registration_directory()
+
+    @property
     def api_key_file(self) -> Path:
         """Shared API key file for model serving authentication."""
         return Path(self.base_dir) / "agents" / ".env"
