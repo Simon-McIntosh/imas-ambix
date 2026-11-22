@@ -1,0 +1,93 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-11-22T20:51:39.019Z",
+  "dispatched_at": "2026-11-22T20:16:47Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:1000",
+      "id": "done_when-1",
+      "reason": "the control's failure signature is the one thing a node checks its test against, so a signature the base arm cannot produce either sends the node hunting a wiring fault in a correct test or invites it to weaken the assertion until something else fails.",
+      "text": "\u00a728's negative control says the base arm must fail \"with slots offered because the served ratio reads 0.273\", but the section's own arithmetic for that record yields the opposite: 0.273 is 12/44, so capacity reads as the live count and the slots read 0, as the same section states one paragraph earlier; a worker building the test would find slots already 0 at base and could not reproduce the refusal the control names",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:997",
+      "id": "reasoning-1",
+      "reason": "the section's stated cause and its stated effect point at different mechanisms \u2014 a circular ratio, and an unbounded launch path \u2014 so a node given only this paragraph cannot tell which of them its change is supposed to move.",
+      "text": "\u00a728's evidence paragraph claims the served ratio \"never sheds\" and that \"only the 30 s p90 wait bound closes the gate, and a backlog of 20 short waits stays under it\", while the same paragraph reports the slots reading 0 with 37 to 44 workers launched for a 0.273 ratio over a 12-wide gate; a ratio equal to width/live makes capacity equal the live count, which sheds every slot, so either the wait bound was below its threshold and the gate still read 0 (a second, unnamed closure) or the published 0 had no effect on launches at all \u2014 leaving the mechanism the fix must address unidentified",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:995",
+      "id": "single_goal-1",
+      "reason": "the cap is the only bound that acts on the launches the section reports, so it is a separate change from the ratio and cannot be closed, reviewed or reverted on the ratio's verdict.",
+      "text": "\u00a728 is headed \"Worker slots are sized by demand, and live workers stay within twice the gate\" and delivers two independently testable behaviours: a demand-weighted slot computation with a published demand ratio, and a hard cap of twice the gate width that binds whatever the ratio says (its own third case tests the cap alone)",
+      "type": "single_goal",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:1005",
+      "id": "single_goal-2",
+      "reason": "an uncovered deliverable lets a node pass its gate with the ready count fixed and the worker split absent, and leaves the split unreviewed until a later round.",
+      "text": "\u00a729's deliverable adds \"Workers are split into those with a request in service or at the gate and those running tools\", a change to the workers count that is independent of the ready count, and the section's \"Done when\" has no case for it",
+      "type": "single_goal",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "8e8b909c0ace3efaef618f5bcff4f9517cbe97ff",
+  "plan_fingerprint": "c9311998c97ad637bee06d7493b667c9b7df3f68ad4f61307ebaf10b30423ab0",
+  "plan_slug": "local-lane-admission-control",
+  "plan_version": 187,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261122T201616246751-plan-review-of-local-lane-admission-control",
+  "reviewed_blob_sha": "ce4ce2734840eb6dcb4f6c7ba8cc0cb851c1a99c",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 neither unit cites a file, section or commit that must resolve; the modules named as write paths (router.py, lane.py, work_queue.py, live_panel.py) and the verdict vocabulary they consume all exist at the reviewed revision.",
+    "done_when": "a finding \u2014 s28's declared negative control asserts a base behaviour its own arithmetic rules out (plan.html:1000).",
+    "evidence_paths": "pass \u2014 each arm's log is declared under the run directory with its revision, its literal command and a closing EXIT line, which survives the run; no node-local or scratchpad path is named.",
+    "naming": "pass \u2014 both headings and both deliverables name a mechanism (demand-sized slots, admissible-only ready), with no plan label, stage name, ticket number or changelog prose.",
+    "reasoning": "a finding \u2014 s28's stated mechanism (the ratio \"never sheds\", and only the wait bound closes the gate) does not match the measurement it cites in the same paragraph, in which the slots read 0 under a backlog the section says stays under that bound (plan.html:997).",
+    "single_goal": "a finding \u2014 s28 joins demand-sized slots with a hard twice-the-width cap (plan.html:995), and s29 joins the ready count with a worker split that no done-when case covers (plan.html:1005).",
+    "wiring": "pass \u2014 s28 and s29 are self-contained (router.py + lane.py; work_queue.py + live_panel.py), neither needs a runs-after edge to the other, and no section it depends on is missing."
+  },
+  "section_digests": {
+    "_document": "6d301808b49b820e107546cd2358fce7b3ab0df4d29c3839d74a649b2dafdc1c",
+    "s1": "1b1d1b4500b53c57897447c9a177dece179e88e753686121fc2b84b09e1c760c",
+    "s10": "e458403d24604404f8f0b0d532c7ab2ed558456be0e6eb0b0a8c9eb89cc84b7c",
+    "s11": "0e0c45e067609b58693c36afc6a9d2cbaf3fe5a14c434241dc15c77c058680e4",
+    "s12": "eb93b318f4f4d1cda5651527a949745199b1bf2b5ab0a0983d88259cd206fa36",
+    "s13": "f2fdec5caaa675f5cc049e44561c6c919f0686083509e568cfe1b7f76f348235",
+    "s14": "003d2055d94b7d42122b5ea822c0278e4d20d24fdaef92a0f28710625210a25e",
+    "s15": "4268180cd95ebb2d676fb7f65f75d8111042ab3937c9814dbd2d30214f10f8ea",
+    "s16": "a84afe91c80937fe01f5f5bacf7f4ec231c01ed155d54299f6fb0b0f009b8573",
+    "s17": "38d113a1441a6259b71f33dbfe2ef408a48e7972d188a9704df834066421da39",
+    "s18": "0a8c9f9402c222f13e020bf34faeb9c742726ccba504ab9541cefb04dbb3f2f7",
+    "s19": "ec9128e383534b85c1b86d3e36018d19f6cf34b5fca068a5d6ca21446eb65ce8",
+    "s2": "d9c810c33b810d6ff8b74cadde08242bd6060fbe49bf942a04eb1562e846a941",
+    "s20": "31ae010e68bd00cded83689b140d051c9319dae7e5aa5bc63279634bbed94ff0",
+    "s21": "c7c4d31f97836375364a72929628e0c326b7ae6a94d5fed37c9fa45c9a832909",
+    "s22": "152a8709b3717d309769a09b46355a4b29072424d968cedd493306ea7c0ad5cd",
+    "s23": "2ab2549ef0bf50eb6f108886db1d720a0860b4a9281902bbec968c1eeefd74d4",
+    "s24": "cab191e2f792e15924162d475c033e6c40469d9cf818a3ddf256ff8407419c0c",
+    "s25": "d581582900c354fdc11b8c2325b6b86449b56647e003557128eb54a5a5ba6cc0",
+    "s26": "dcb8c8554d76effe4a922df5640b94c7f3c1da7d772dde105870d201e4c7974a",
+    "s27": "a0c6c3c8f363e4194083ecb0e2f7db84030261a3aacb2c32696ca90cf001cef3",
+    "s28": "09976d1daf9aed070687767a63c48462205102b56d7a97317716369c107aed3f",
+    "s29": "0ee2ff4f25ade071f1d4bbd4c1c98f851ffe23d1b1607acb2d9a17e2a6aebe44",
+    "s3": "564dc8bf433bd514e5844908120075b7971e91522576425e376c55cc5364aa95",
+    "s4": "c39d3c5235419d0e7d55b9a2815cac98ee3df28cb9d93f392d232b3ed324f0ed",
+    "s5": "9470b9366625e7be8e7b66eac5505aecf8ecfbf7cbd24d62136af5e308784a00",
+    "s6": "0234e45f5118a54e635718d640af5ffe33e9bcc1cd6ad8990469320f2f9365df",
+    "s7": "2cd5b5f631eb986e90526fb5dcd8ab69ddb24d1715c8a384e465db5f7b607cab",
+    "s8": "76158fd44f36a4ab25033c54573c6f38645750c3d460b4994f3a3c1b6b012c9b",
+    "s9": "62fa9c6e7189e9a66ec92c0c3fe0506ed147f89b172415959b846ca83f8fe212"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-11-22T20:52:29.838244+00:00",
+  "total": null
+}
