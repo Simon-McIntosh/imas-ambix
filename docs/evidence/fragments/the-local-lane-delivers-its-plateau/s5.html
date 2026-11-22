@@ -17,8 +17,10 @@ stated measure.</p>
 <p>§3 instrument calibrated from the committed fed window 04:45–06:40 UTC on
 18 November, 4.5 h, bound 30 s, <strong>margin 2.6</strong>. Five-minute windows
 start at the end of the 1800 s warm-up; the settled set drops the first ten
-minutes after it. Sweep over the merged tree (<code>mprobe2.py</code>, every
-margin both arms, <code>all_debug</code>); the margin was re-measured after the
+minutes after it. Ten fixed seeds, both arms, run on <code>all_debug</code> by
+<code>bound_seeds.py run</code> beside this fragment; every figure below is cut
+from <code>logs/s5-ten-seeds.log</code>, and <code>bound_seeds.py check</code>
+fails when the table and that log disagree. The margin was re-measured after the
 lane's borrow reserve landed, because that rule moves the pool the bound sits
 on.</p>
 <table>
@@ -37,17 +39,18 @@ on.</p>
 <p>Ten fixed seeds at margin 2.6, both arms per seed. The pass condition is the bounded arm and it holds on all ten: the worst is seed 9 at 44.00 s, every other seed lower. The bound holds by two mechanisms. A closure is released only when the windowed wait falls to half the bound, because the five-minute window still holds the burst that closed it. And the margin&rsquo;s capacity is capped by the wait the lane measures on itself: the pool is scaled down in proportion to the p90 it produced, and by the pool a request span can be served inside the bound, so a burst the load model did not foresee shrinks the pool by the size of the wait it caused. The bound-disabled arm does not cross 45 s on seeds 3, 5, 6, 7, 8 and 9 &mdash; their offered load never produces that wait unbound &mdash; which is recorded here and is not part of the pass condition.</p>
 
 <h2>Think time dropping to a third at two hours (measured, not a pass condition)</h2>
-<p>Default margin 1.5, think time divided by three at 7200 s, both arms run with
-the bound on and off: each carries the same worst settled window, 16.0 s, and
-neither publishes a document closed for the wait. The bound has nothing to close
-here because the lane settles under it in both arms, so this run cannot separate
-the two and is recorded as a measurement rather than as a pass condition.</p>
+<p>Default margin 1.5, seed 0, think time divided by three at 7200 s, both arms
+run with the bound on and off: each carries the same worst settled window,
+16.0 s, and neither publishes a document closed for the wait. The bound has
+nothing to close here because the lane settles under it in both arms, so this
+run cannot separate the two and is recorded as a measurement rather than as a
+pass condition. Both arms' figures are in
+<code>logs/s5-ten-seeds.log</code>.</p>
 
 <h2>Unit tests</h2>
 <p>The document fields at the bound, just under it and just over it, a paused
 gate and a wait-closed gate differing only in the reason field, a wait older
 than the window reopening the slots, and the control-file read and its malformed
 fallback: <code>tests/test_agent_lane_wait_bound.py</code>.</p>
-<p>Logs: <code>logs/margin-seeds.log</code>, <code>logs/s5-probe-early3.log</code>,
-<code>logs/s5-gate.log</code>.</p>
+<p>Log: <code>logs/s5-ten-seeds.log</code>.</p>
 </body></html>

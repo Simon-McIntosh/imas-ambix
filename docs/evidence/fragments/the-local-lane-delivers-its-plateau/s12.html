@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><title>§12 the wait bound's figures read from a committed log</title></head><body>
+<h1>The wait bound's figures read from a committed log</h1>
+
+<p>The ten-seed table and the think-time-drop sentence in §5 were true of a run
+whose log was never committed: it cites <code>logs/margin-seeds.log</code>,
+<code>logs/s5-probe-early3.log</code> and <code>logs/s5-gate.log</code>, and none
+of the three is in the repository. The same check run against that fragment fails
+on all three, and on the absent log the table is now read from. The figures
+themselves reproduce: the merged tree at this revision measures every value the
+table states, so the repair is the instrument, not the numbers.</p>
+
+<h2>What the landed revision measures</h2>
+<p>The think-time-drop run measures <strong>16.0 s</strong> in both arms, not
+35.25 s. The pool settles under the bound, so neither arm closes a slot for the
+wait and the two arms carry the same worst settled window. The 35.25 s figure was
+measured on the early-window calibration (mean think time 17.9 s) at an earlier
+revision of the rule; the landed revision calibrates from the committed fed
+window 04:45&ndash;06:40 UTC and runs the rule that is in the tree now, and on it
+the lane settles well inside the bound. 16.0 s is therefore the figure the plan
+section's done-when is asking for, and 35.25 s describes neither the current
+calibration nor the current rule.</p>
+
+<h2>The instrument</h2>
+<p><code>bound_seeds.py</code> sits beside this fragment. Its <code>run</code>
+mode simulates the calibrated lane at the bound's demonstration margin (2.6),
+over the ten fixed seeds, both arms, and then the think-time-drop run at the
+default margin in both arms, and writes
+<code>logs/s5-ten-seeds.log</code>: each seed's bounded and bound-disabled
+maximum settled window, the number of settled windows over 45 s in each arm, the
+bounded arm's count of documents closed for the wait, and the think-time-drop
+run's worst settled window in both arms. Its <code>check</code> mode reads that
+log and the §5 fragment and fails unless every figure the fragment states is the
+log's and every log the fragment cites is a file in the repository. The run was
+made on <code>all_debug</code>; the log's header records the module path and
+working directory it resolved from.</p>
+
+<p>The reproduction is exact: at margin 2.6 seed 0 carries 34.50 s bounded and
+47.00 s bound-disabled, seed 4 carries 43.25 s and 49.50 s, seed 9 carries
+44.00 s in both, and the bound-disabled arm crosses 45 s on seeds 0, 1, 2 and 4
+and on no other seed. Every bounded arm stays under 45 s in every settled
+window.</p>
+
+<h2>Negative control</h2>
+<p>The same check, run on the §5 fragment as this node found it, fails naming the
+three logs it cites and the log it is told to read: none of the four exists. That
+is the state the section was written against, and it is why the table could not
+be checked against a committed run.</p>
+</body></html>
