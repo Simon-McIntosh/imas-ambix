@@ -1,0 +1,76 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run records a single suite arm: gate.log over its six named modules shows 0 failures (90 passed, EXIT=0), so no added failure can exist (an added failure must appear in the after arm). No baseline_suite/after_suite pair was recorded in the reviewed manifest, so the count is derived from the after arm alone.",
+  "call_site_count": 9,
+  "call_sites": [
+    "imas_ambix/agent/registry.py:main (publish subcommand)",
+    "imas_ambix/agent/slurm.py:generate_serve_script",
+    "imas_ambix/agent/slurm.py:generate_router_script",
+    "imas_ambix/agent/cli.py:_republish_endpoint_document",
+    "imas_ambix/agent/cli.py:_remove_cancelled_registrations",
+    "imas_ambix/agent/cli.py:_placement_of_running_serve",
+    "imas_ambix/agent/cli.py:_resolve_router_upstreams",
+    "imas_ambix/agent/cli.py:_execute_restart_cycle",
+    "imas_ambix/agent/profile.py:SiteConfig.serve_registry_dir"
+  ],
+  "completed_at": "2026-11-23T02:17:04.527Z",
+  "dispatched_at": "2026-11-23T02:05:02Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/registry.py",
+      "line": "863",
+      "severity": "non-blocking",
+      "text": "non-blocking: publish_registrations duplicates the body of publish_endpoint_document (registry.py:770) instead of calling it, and the original owner now has no caller at all; the recyclable five-line tail should delegate to it."
+    },
+    {
+      "file": "imas_ambix/agent/registry.py",
+      "line": "352",
+      "severity": "non-blocking",
+      "text": "non-blocking: the new state_home() re-spells the XDG state home resolution inlined at imas_ambix/agent/cli.py:4119, so the operator state home has two spellings; the gate-copy path should call this resolver."
+    },
+    {
+      "file": "tests/test_agent_dry_run.py",
+      "line": "80",
+      "severity": "non-blocking",
+      "text": "non-blocking: the scene fixture still seeds a registration under <base>/agents/serve-registry, which the production path no longer reads, so the \"live-looking site with a registration\" no longer supplies a registration to the code under test; tests/test_agent_sweep_options.py:68 seeds the same stale directory."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 9 production call site(s)",
+    "diff": "read commit by commit from c062878b to a96dd4b6; 405a4b0c carries the code, tests and docs, and a96dd4b6 adds only the base revision to the evidence fragment.",
+    "done_when": "the done_when names tests/test_agent_registry_lives_under_home.py and its three behaviours plus two negative controls, and the manifest records that file's gate run (90 passed, EXIT=0) and both red controls with named failing ids.",
+    "goal": "the node goal is that the serve registry resolves under the operator's state home rather than the site base and that an empty registry beside a running serve preserves the document; imas_ambix/agent/registry.py:358 and :809 land exactly that.",
+    "manifest": "read; it reports status complete, the gate command and log paths, both negative controls red, and the pre-existing failures under outside_scope rather than fixed.",
+    "write_paths": "read the declared list; all 12 changed paths are inside the 13 declared write paths, with the conftest fixture and four test-file edits being the call-site updates the change implies."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_registry_lives_under_home.py:120 asserts the empty-registry publish leaves the document byte-identical and reports the reason, a condition that reddens when the guard at registry.py:851 is removed, as negative-control-b.log shows.",
+    "evidence": "gate.log records 90 passed and a bare EXIT=0 over the named module, and negative-control-a.log/:b.log are red with named ids, though the reviewed manifest carries no baseline_suite/after_suite arms and the gate omitted test_agent_dry_run.py, which also touches the registry path, so the delta rests on an after arm alone.",
+    "fit": "the frozen slots dataclass PublishResult at registry.py:786 and the mechanism-worded docstrings match the surrounding registry code, and no name carries a plan, sprint or ticket label.",
+    "goal_fidelity": "imas_ambix/agent/registry.py:358 returns state_home()/\"ambix\"/\"serve-registry\" with no site base parameter, and registry.py:851 keeps the document when a live serve meets an empty registry.",
+    "reuse": "registry.py:809 consolidates the two previously duplicated publish bodies into one owner, but its tail at registry.py:859-864 re-inlines publish_endpoint_document's body (registry.py:770), which is left with no caller.",
+    "scope_discipline": "every path in the diff (registry.py, profile.py, slurm.py, cli.py, AGENTS.md, conftest.py, the four test modules and the evidence fragment) is inside the declared write paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is that the serve registry resolves under the operator's state home rather than the site base and that an empty registry beside a running serve preserves the document; imas_ambix/agent/registry.py:358 and :809 land exactly that.\nVERDICT done_when: the done_when names tests/test_agent_registry_lives_under_home.py and its three behaviours plus two negative controls, and the manifest records that file's gate run (90 passed, EXIT=0) and both red controls with named failing ids.\nVERDICT write_paths: read the declared list; all 12 changed paths are inside the 13 declared write paths, with the conftest fixture and four test-file edits being the call-site updates the change implies.\nVERDICT manifest: read; it reports status complete, the gate command and log paths, both negative controls red, and the pre-existing failures under outside_scope rather than fixed.\nVERDICT diff: read commit by commit from c062878b to a96dd4b6; 405a4b0c carries the code, tests and docs, and a96dd4b6 adds only the base revision to the evidence fragment.\nCALL_SITES: imas_ambix/agent/registry.py:main (publish subcommand), imas_ambix/agent/slurm.py:generate_serve_script, imas_ambix/agent/slurm.py:generate_router_script, imas_ambix/agent/cli.py:_republish_endpoint_document, imas_ambix/agent/cli.py:_remove_cancelled_registrations, imas_ambix/agent/cli.py:_placement_of_running_serve, imas_ambix/agent/cli.py:_resolve_router_upstreams, imas_ambix/agent/cli.py:_execute_restart_cycle, imas_ambix/agent/profile.py:SiteConfig.serve_registry_dir\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/registry.py:358 returns state_home()/\"ambix\"/\"serve-registry\" with no site base parameter, and registry.py:851 keeps the document when a live serve meets an empty registry.\nSCORE evidence: 16\nJUSTIFICATION evidence: gate.log records 90 passed and a bare EXIT=0 over the named module, and negative-control-a.log/:b.log are red with named ids, though the reviewed manifest carries no baseline_suite/after_suite arms and the gate omitted test_agent_dry_run.py, which also touches the registry path, so the delta rests on an after arm alone.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every path in the diff (registry.py, profile.py, slurm.py, cli.py, AGENTS.md, conftest.py, the four test modules and the evidence fragment) is inside the declared write paths.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_agent_registry_lives_under_home.py:120 asserts the empty-registry publish leaves the document byte-identical and reports the reason, a condition that reddens when the guard at registry.py:851 is removed, as negative-control-b.log shows.\nSCORE fit: 18\nJUSTIFICATION fit: the frozen slots dataclass PublishResult at registry.py:786 and the mechanism-worded docstrings match the surrounding registry code, and no name carries a plan, sprint or ticket label.\nSCORE reuse: 14\nJUSTIFICATION reuse: registry.py:809 consolidates the two previously duplicated publish bodies into one owner, but its tail at registry.py:859-864 re-inlines publish_endpoint_document's body (registry.py:770), which is left with no caller.\nFINDING imas_ambix/agent/registry.py:863 non-blocking: publish_registrations duplicates the body of publish_endpoint_document (registry.py:770) instead of calling it, and the original owner now has no caller at all; the recyclable five-line tail should delegate to it.\nFINDING imas_ambix/agent/registry.py:352 non-blocking: the new state_home() re-spells the XDG state home resolution inlined at imas_ambix/agent/cli.py:4119, so the operator state home has two spellings; the gate-copy path should call this resolver.\nFINDING tests/test_agent_dry_run.py:80 non-blocking: the scene fixture still seeds a registration under <base>/agents/serve-registry, which the production path no longer reads, so the \"live-looking site with a registration\" no longer supplies a registration to the code under test; tests/test_agent_sweep_options.py:68 seeds the same stale directory.",
+  "review_run_id": "r-20261123T020429338014-review-of-llp-the-serve-registry-lives-under-home-a96dd4b68989",
+  "reviewed_base_sha": "c062878bbb3cc062da0b50b1e669f8830d18ef83",
+  "reviewed_head_sha": "a96dd4b68989b6adcc9eb973413e5b4a4b06f29a",
+  "reviewed_run_id": "r-20261121T211400345728-llp-the-serve-registry-lives-under-home",
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 14,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-11-23T02:19:17.600642+00:00",
+  "total": 102
+}
