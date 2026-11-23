@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s5&quot;,&quot;watch-index-lifecycle#s7&quot;,&quot;watch-index-lifecycle#s10&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="37">
+<meta name="plan-version" content="38">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -325,8 +325,12 @@
       <li>The named tests, the serving-interpreter guard and the whole-tree ruff gate pass on the fleet allocation.</li>
     </ul>
 
-    <h2 id="s9">§9 — Raw samples age out of the index once rollups carry them (deferred)</h2>
-    <p>Once §5 has landed, raw sample rows older than a horizon serve only edge hours that no period reaches. The horizon would be 35 days, covering the one-month period plus its edges. Removing those rows loses nothing, because the receipts and their compacted tiers on GPFS remain the authority. That is true only if a rebuild from the receipts reproduces the pruned hours' rollups exactly. This section is deferred until §8's breakdown says how much the pruning would recover, and until that reproduction is measured.</p>
+    <h2 id="s9">§9 — Raw samples age out of the index once rollups carry them</h2>
+    <section data-reckon="section" data-id="s9" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
+    <p>The live index on the fleet node's local disk reached 7.16 GB on 23 November 2026, growing about 1.5 GB a day, and its raw samples reach back to 7 September, 77 days. §8 measured that the measurement rows hold about 80 % of the file, at about 74 per sample. Twice on 22 November the fleet node's <code>/tmp</code>, which holds this index, fell under the 5 GB floor every dispatch checks, and dispatch in every project was refused. Raw rows older than the one-month period plus its edges serve only hours no period reaches, and the receipts with their compacted tiers on GPFS remain the authority.</p>
+    <p><strong>Deliverable.</strong> Each retention pass removes raw sample rows, and the measurement rows that belong to them, older than 35 days whose hours an hourly rollup already carries, and returns the space so the file shrinks. A raw row whose hour has no rollup is kept. A rebuild from the receipts reproduces the rollups of the pruned hours exactly.</p>
+    <p><strong>Done when.</strong> <code>tests/test_raw_samples_age_out.py</code> passes, covering: an index with samples over 60 days and rollups for every hour keeps no raw row older than 35 days after one pass, keeps every rollup, and is smaller on disk; a sample whose hour has no rollup is kept; and a rebuild from the receipts of a pruned hour yields the same rollup row. The live index's size after the first pass on the fleet node is recorded beside 7.16 GB, with its growth over the following day. Each arm's log sits under the run directory and carries its revision, its literal command and a closing <code>EXIT=</code> line; anything heavier than a unit test runs on <code>all_debug</code> or <code>rigel</code>.</p>
+    <p><strong>Negative control.</strong> At the base revision, the first case fails, with raw rows older than 35 days still present.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
