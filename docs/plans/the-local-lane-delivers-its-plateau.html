@@ -25,7 +25,7 @@
   <title>The Local Lane Delivers Its Plateau | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="37">
+<meta name="plan-version" content="38">
 <meta name="plan-modified" content="2026-11-23">
 </head>
 <body>
@@ -189,6 +189,9 @@
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20261123T020429338014-review-of-llp-the-serve-registry-lives-under-home-a96dd4b68989" data-who="reckon-build" data-when="2026-11-23T02:17:04.527Z">
     <div class="r-comment-body"><p>Independent review of r-20261121T211400345728-llp-the-serve-registry-lives-under-home at c062878b..a96dd4b6 stored parsed with scores goal_fidelity 19, evidence 16, scope_discipline 18, durability 17, fit 18, reuse 14 (total 102), added_failure_count 0 with no ids, and three non-blocking findings (registry.py:863 duplicate of publish_endpoint_document, registry.py:352 a second state-home spelling, tests/test_agent_dry_run.py:80 seed directory no longer read).</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20261121T211400345728-llp-the-serve-registry-lives-under-home" data-who="reckon-build" data-when="2026-11-22T18:49:29.642Z">
+    <div class="r-comment-body"><p>The serve registry now resolves under the operator&#x27;s state home (registration_directory() -&gt; $XDG_STATE_HOME/ambix/serve-registry, default ~/.local/state/ambix/serve-registry) with SiteConfig.serve_registry_dir as the site-facing spelling, both generated scripts naming it, and a publish that finds no registration while a serve job runs keeping the existing endpoint document and reporting the reason (--released-job-id excepts an allocation that just deregistered); measure: tests/test_agent_registry_lives_under_home.py adds 8 tests and the focused gate over it plus the five affected registry/router/endpoint/site modules ran 90 passed EXIT=0, with negative control A failing 5 of the 8 (EXIT=1) and negative control B failing the preservation test (EXIT=1).</p></div>
 </div>
 <div class="r-comment" data-section="s12" data-id="c-run-r-20261123T020518537528-review-of-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures-08b4c98c3a54" data-who="reckon-build" data-when="2026-11-23T02:18:48.398Z">
     <div class="r-comment-body"><p>Review of r-20261121T214352054315 at 08b4c98c scored all six dimensions and found no blocking defect; two non-blocking findings on bound_seeds.py — a duplicated nearest-rank percentile and a docstring/CLI argument-order mismatch.</p></div>
