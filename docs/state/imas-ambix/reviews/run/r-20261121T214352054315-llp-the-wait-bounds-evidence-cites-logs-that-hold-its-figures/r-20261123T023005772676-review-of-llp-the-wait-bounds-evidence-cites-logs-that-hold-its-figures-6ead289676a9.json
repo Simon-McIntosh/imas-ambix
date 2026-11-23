@@ -1,0 +1,54 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [],
+  "completed_at": "2026-11-23T02:34:43.530Z",
+  "dimension_dispositions": {
+    "durability": {
+      "kind": "folded",
+      "node": "repair-of-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures-6ead289676a9",
+      "recorded_at": "2026-11-23T02:44:57.375569+00:00"
+    }
+  },
+  "dispatched_at": "2026-11-23T02:30:29Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py",
+      "line": 52,
+      "severity": "non-blocking",
+      "text": "The delegation to the owner's percentile_or_none has no test that reddens if a local nearest-rank body returns to this script: grep over tests/ and imas_ambix/ finds no reference to bound_seeds at all, and the two estimators are numerically identical, so no figure-drift check can catch the regression either. The reuse repair can therefore be undone silently; its only guard is the manual reuse negative control."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py",
+      "line": 16,
+      "severity": "non-blocking",
+      "text": "The logged green arm of the reuse negative control (reuse-negative-control.log, the manifest's declared negative_control_log) interleaves uv's 'Provide a command or script to invoke' help listing between its '# command:' header and the script's pass line, so the green arm's provenance cannot be read from that log alone. The essential negative-control fact is unaffected \u2014 the pre-repair arm is clean and ends EXIT=1 \u2014 and check-green.log is a clean EXIT=0 at the repaired tree."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "none \u2014 bound_seeds.py is a standalone evidence script under docs/ that no production module imports; the change adds no definition and no production caller reaches it",
+    "diff": "Read commit by commit against the base: one commit, one file, +7/-9 \u2014 it deletes _rank_p90, imports percentile_or_none from imas_ambix/agent/lane_utilisation.py and calls it at bound_seeds.py:52, adds the estimator paragraph to the module docstring, and corrects the usage line to 'check <log> <fragment>'.",
+    "done_when": "The done-when's measures hold at the reviewed head: logs/s5-ten-seeds.log carries ten seeds \u00d7 both arms plus the think-time-drop run in both arms (seed 0 34.50 bounded against 47.00 bound-disabled, think_drop 16.00 in both arms); check-green.log ends EXIT=0; s12.html states 16.0 s; the gained commit regenerates the log byte-identical (data lines identical to the committed log).",
+    "goal": "The source node's plan-\u00a712 goal is that section 5's figures read from a committed log and \u00a712 states which of 16.0 s and 35.25 s the landed revision measures; the gained commit 6ead2896 repairs the instrument by cutting each five-minute window with the lane's one nearest-rank estimator at docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py:52 and nothing it changes moves a figure.",
+    "manifest": "Read; it records the repair round (checkpoint naming commit 6ead2896), the literal gate command, reuse-negative-control.log as negative_control_log, the measurement module and cwd, and carries no baseline_suite or after_suite arms because the node ran no pytest suite \u2014 its gate is the check subcommand.",
+    "write_paths": "The manifest declares six paths; the gained commit 08b4c98c..6ead2896 touches exactly one, docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py, which is inside the declared set."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the source node's plan-\u00a712 goal is that section 5's figures read from a committed log and \u00a712 states which of 16.0 s and 35.25 s the landed revision measures; the gained commit 6ead2896 repairs the instrument by cutting each window with docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py:52 percentile_or_none, and s12.html states 16.0 s in both arms.\nVERDICT done_when: the done-when's measures hold at the head \u2014 logs/s5-ten-seeds.log holds ten seeds x both arms plus the think-time-drop run in both arms, check-green.log ends EXIT=0, s12.html states 16.0 s, and the regenerated log's data lines are identical to the committed log.\nVERDICT write_paths: the manifest declares six paths and the gained commit 08b4c98c..6ead2896 touches exactly one, docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py, inside the declared set.\nVERDICT manifest: read; it records the repair round and commit 6ead2896, the literal gate command, reuse-negative-control.log as the negative control, and the measurement module and cwd, with no baseline_suite or after_suite arms because the node ran no pytest suite.\nVERDICT diff: read against 08b4c98c; one commit, one file, +7/-9 \u2014 it removes _rank_p90, imports percentile_or_none from imas_ambix/agent/lane_utilisation.py and calls it at bound_seeds.py:52, adds the estimator paragraph, and corrects the usage line to 'check <log> <fragment>'.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: bound_seeds.py:52 delegates to the owner percentile_or_none and the regenerated log's data lines are identical to the committed log, so the repair does what it claims without moving a figure.\nSCORE evidence: 17\nJUSTIFICATION evidence: check-green.log ends EXIT=0 at the repaired tree and reuse-negative-control.log records the pre-repair arm at EXIT=1 and the repaired arm at EXIT=0, but the green arm's log is muddied by uv help text.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the gained commit touches only docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py, inside the declared write paths, with nothing unimplied.\nSCORE durability: 8\nJUSTIFICATION durability: no test references bound_seeds.py and the two estimators are numerically identical, so nothing reddens if a local nearest-rank body returns to bound_seeds.py:52.\nSCORE fit: 18\nJUSTIFICATION fit: the change follows the file's idiom \u2014 a module-level import beside lane_sim at bound_seeds.py:26-27 and a docstring paragraph \u2014 and introduces no name the naming rules forbid.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change deletes the duplicate _rank_p90 and calls the owner imas_ambix/agent/lane_utilisation.py:489 percentile_or_none, so the evidence and the gate share one estimator.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py:52 non-blocking: the delegation to percentile_or_none has no test that reddens if a local nearest-rank body returns, since tests/ and imas_ambix/ never reference bound_seeds and the estimators are numerically identical, so the reuse repair can be undone silently.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py:16 non-blocking: the declared negative-control log's green arm interleaves uv's 'Provide a command or script to invoke' help listing before its pass line, so that arm's provenance is not readable from the log alone; the pre-repair arm is clean at EXIT=1 and check-green.log is a clean EXIT=0.",
+  "review_run_id": "r-20261123T023005772676-review-of-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures-6ead289676a9",
+  "reviewed_base_sha": "08b4c98c3a542e744213f6e7b906aaacd21d9d67",
+  "reviewed_head_sha": "6ead289676a9b2fe3c045081966d7f248e2a0dbf",
+  "reviewed_run_id": "r-20261121T214352054315-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures",
+  "scores": {
+    "durability": 8,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-11-23T02:55:31.412932+00:00",
+  "total": 102
+}
