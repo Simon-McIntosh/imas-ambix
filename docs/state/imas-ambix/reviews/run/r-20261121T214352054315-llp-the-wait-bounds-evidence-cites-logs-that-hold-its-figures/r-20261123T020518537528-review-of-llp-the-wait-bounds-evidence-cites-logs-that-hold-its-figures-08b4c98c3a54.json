@@ -1,0 +1,46 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [],
+  "completed_at": "2026-11-23T02:18:48.398Z",
+  "dispatched_at": "2026-11-23T02:05:45Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py",
+      "line": 42,
+      "severity": "non-blocking",
+      "text": "_rank_p90 re-implements the nearest-rank percentile that imas_ambix/agent/lane_utilisation.py:489 percentile_or_none owns; that function's docstring states it is the one nearest-rank estimator for the lane's figures and that the simulation's _quantile defers to it, and lane_sim.py:165 documents the rule against a second copy. The values agree today, so no figure moves, but a change to the owner's convention would silently diverge the evidence. Passing the waits to percentile_or_none is the fix."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py",
+      "line": 12,
+      "severity": "non-blocking",
+      "text": "the module docstring's usage line states 'check <fragment> <log>' while main() binds the positionals as '<log> <fragment>' (lines 232-235); the docstring order was reproduced and exits 1 with 'the fragment states 0 seed rows', a misleading refusal. The docstring should state '<log> <fragment>' to match the verified invocation in check-green.log."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "none \u2014 the landed change is documentation plus a standalone evidence script under docs/ that no production module imports",
+    "diff": "read commit by commit (one commit, 08b4c98c, four files, +326/-9); it adds the runner and the log, writes the section 12 fragment, and re-points section 5's table provenance.",
+    "done_when": "the done_when's four measures are recorded: logs/s5-ten-seeds.log holds ten seeds x both arms plus the think-time-drop run in both arms; check-green.log ends EXIT=0 and negative-control.log ends EXIT=1 naming logs/margin-seeds.log, logs/s5-probe-early3.log and logs/s5-gate.log as absent.",
+    "goal": "node.json carries no goal line; the brief makes the plan section's done_when the authority, and it asks that section 5's figures be read from a committed log and that section 12 state which of 16.0 s and 35.25 s the landed revision measures - s12.html states 16.0 s in both arms.",
+    "manifest": "read; it reports the all_debug run (job 1337539), the literal gate command, EXIT=0, a red negative control, and records in outside_scope the plan-text figure the node could not edit.",
+    "write_paths": "the manifest declares six paths; the diff touches four of them (bound_seeds.py, logs/s5-ten-seeds.log, s5.html, s12.html) and no path outside the declared set."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261123T020518537528-review-of-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures-08b4c98c3a54",
+  "reviewed_base_sha": "c062878bbb3cc062da0b50b1e669f8830d18ef83",
+  "reviewed_head_sha": "08b4c98c3a542e744213f6e7b906aaacd21d9d67",
+  "reviewed_run_id": "r-20261121T214352054315-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures",
+  "scores": {
+    "durability": 14,
+    "evidence": 18,
+    "fit": 15,
+    "goal_fidelity": 18,
+    "reuse": 5,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-11-23T02:19:31.473694+00:00",
+  "total": 89
+}
