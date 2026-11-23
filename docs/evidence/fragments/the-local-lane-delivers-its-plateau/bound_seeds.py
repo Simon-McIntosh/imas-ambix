@@ -10,7 +10,10 @@ cites is a file in the repository.
 
 Each five-minute window's figure is cut with ``percentile_or_none``, the one
 nearest-rank estimator the lane's own figures use, so the log agrees with what
-the gate publishes for the same record.
+the gate publishes for the same record. ``check`` asserts that provenance: a
+second nearest-rank rule agreeing today is indistinguishable from the owner's
+by any figure it produces, so the check reads where the callable lives and
+fails if a local estimator has grown back beside the import.
 
 usage: bound_seeds.py run <log>      (on a compute partition)
        bound_seeds.py check <log> <fragment>
@@ -23,6 +26,7 @@ import re
 import sys
 from pathlib import Path
 
+from imas_ambix.agent import lane_utilisation
 from imas_ambix.agent.lane_sim import LaneSim, calibrate_rows, read_receipts
 from imas_ambix.agent.lane_utilisation import percentile_or_none
 from imas_ambix.agent.router import DEFAULT_WAIT_BOUND_SECONDS
@@ -52,6 +56,38 @@ def _window_p90s(sim: LaneSim) -> list[tuple[float, float | None]]:
         windows.append((lo, percentile_or_none(waits, 0.9)))
         lo += WINDOW_S
     return windows
+
+
+def _estimator_problem() -> str | None:
+    """Why the window figure may not be the lane's estimator, if it is not.
+
+    A nearest-rank rule written here would agree with the owner's on every
+    input, so no figure the log holds can tell the two apart: only where the
+    callable lives can. The check asks that, and reads this file for a
+    percentile body grown back beside the import.
+    """
+    if percentile_or_none.__module__ != lane_utilisation.__name__:
+        return (
+            "the window figure is not cut with the lane's estimator: "
+            f"{percentile_or_none.__module__}.{percentile_or_none.__qualname__}"
+        )
+    if "percentile_or_none" not in _window_p90s.__code__.co_names:
+        return "the window figure does not call percentile_or_none"
+    source = Path(__file__).read_text(encoding="utf-8")
+    # This function's own text names the token it looks for.
+    skip = {"_estimator_problem"}
+    for match in re.finditer(r"^def (\w+)\(", source, re.MULTILINE):
+        name = match.group(1)
+        if name in skip:
+            continue
+        rest = source[match.end() :]
+        end = re.search(r"^(?:def|class) ", rest, re.MULTILINE)
+        body = rest[: end.start()] if end else rest
+        if "sorted(" in body:
+            return (
+                f"this script defines its own percentile body beside the lane's: {name}"
+            )
+    return None
 
 
 def _settled(sim: LaneSim) -> list[float]:
@@ -165,6 +201,9 @@ def _log_figures(text: str) -> dict:
 
 def check(fragment: Path, log_path: Path) -> int:
     problems = []
+    estimator = _estimator_problem()
+    if estimator:
+        problems.append(estimator)
     text = fragment.read_text(encoding="utf-8")
     for cited in re.findall(r"<code>(logs/[^<]+)</code>", text):
         if not (fragment.parent / cited).exists():
