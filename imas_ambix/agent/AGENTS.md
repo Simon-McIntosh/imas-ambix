@@ -380,6 +380,25 @@ support therefore requires one router restart under the
 `shutdown <profile>` refuses to cancel two matching jobs unless `--all` is
 supplied, which deliberately cancels all Ambix jobs.
 
+**The serve registry lives in the operator's state home, not in the project
+tree.** A serve registers itself in `~/.local/state/ambix/serve-registry`
+(`$XDG_STATE_HOME` when set), the router publishes from it, and the CLI reads
+it back — one directory, resolved once by
+`imas_ambix.agent.registry.registration_directory`. It used to sit beside the
+model store under `base_dir`, and reclaiming that tree deleted it without any
+caller noticing; the next publish then found nothing to name and replaced a
+document naming a live engine with an empty one. It is operator state, so it
+belongs with the rest of the operator state, and a launcher generated before
+the move must be regenerated (`imas-ambix agent serve --dry-run` shows the
+`_REGISTRY_DIR` it now writes).
+
+**A publish that finds an empty registry while a serve job is running keeps the
+document it would have erased.** An empty read is what a lost registry looks
+like, not evidence that nothing is served, so `registry publish` keeps the
+existing document and reports the reason on stderr. Only an allocation that
+removes its own record and republishes (`--released-job-id`) is entitled to an
+empty result.
+
 **Read the router's address from the endpoint document; do not hard-code it.**
 The router's job writes its own host and port into `routing_origins` in
 `~/public/imas-ambix/endpoints.json` when it starts answering and when it

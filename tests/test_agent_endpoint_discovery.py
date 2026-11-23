@@ -672,7 +672,7 @@ def test_serve_on_changed_port_republishes_document_naming_new_port_and_cards(
     monkeypatch.setenv("AMBIX_AGENT_ENDPOINT_DOCUMENT", str(target))
     monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: [])
 
-    directory = registry_mod.registration_directory(site_dir)
+    directory = registry_mod.registration_directory()
     original = ServeRegistration(
         "deepseek-v4-flash", "node-a", 19001, "41", 2, "fp4+fp8", "H200"
     )
@@ -811,7 +811,7 @@ def test_shutdown_cancels_and_republishes_removing_the_release(tmp_path, monkeyp
         ],
     )
 
-    directory = registry_mod.registration_directory(site_dir)
+    directory = registry_mod.registration_directory()
     alpha = ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16", "H100")
     beta = ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8", "H200")
     write_registration(alpha, directory)

@@ -67,7 +67,7 @@ def _ready(model_id: str = "glm-5.3") -> ProbeResult:
 
 def test_registration_becomes_probe_qualified_upstream(tmp_path, monkeypatch):
     site = SiteConfig(base_dir=str(tmp_path))
-    write_registration(_record(), registration_directory(site.base_dir))
+    write_registration(_record(), registration_directory())
     probe_keys: list[str | None] = []
     monkeypatch.setattr(cli_mod, "_running_jobs", lambda _site, **_: [_job("42")])
     monkeypatch.setattr(
@@ -92,7 +92,7 @@ def test_registration_becomes_probe_qualified_upstream(tmp_path, monkeypatch):
 
 def test_stale_or_unreachable_registration_is_not_offered(tmp_path, monkeypatch):
     site = SiteConfig(base_dir=str(tmp_path))
-    directory = registration_directory(site.base_dir)
+    directory = registration_directory()
     write_registration(_record("stale", port=18800), directory)
     write_registration(_record("unreachable", port=18801), directory)
     monkeypatch.setattr(
@@ -125,7 +125,7 @@ def test_probe_qualified_record_survives_scheduler_fallback_outage(
     tmp_path, monkeypatch
 ):
     site = SiteConfig(base_dir=str(tmp_path))
-    write_registration(_record(), registration_directory(site.base_dir))
+    write_registration(_record(), registration_directory())
     calls = 0
 
     def scheduler(_site, **_kwargs):
@@ -149,7 +149,7 @@ def test_registration_wins_deduplication_and_restart_uses_new_port(
     tmp_path, monkeypatch
 ):
     site = SiteConfig(base_dir=str(tmp_path))
-    directory = registration_directory(site.base_dir)
+    directory = registration_directory()
     write_registration(_record("old", port=18801), directory)
     write_registration(_record("new", port=19444), directory)
     monkeypatch.setattr(cli_mod, "_running_jobs", lambda _site, **_: [_job("new")])

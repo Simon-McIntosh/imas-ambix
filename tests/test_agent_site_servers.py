@@ -35,7 +35,7 @@ _BASE_SITE = SiteConfig(
 # records the script this profile produces with the checkpoint it pins, so a
 # profile change that reaches the default launch has to move this figure with
 # it rather than leaving it describing a launch nobody makes any more.
-_BASE_SCRIPT_DIGEST = "71c056eaa2589d7ffd9e16a7615a035e89248ef069bc4589ea6067f1e53e6db0"
+_BASE_SCRIPT_DIGEST = "a8d5efa7656f9f1fc08e56b3a490ec3a64f2d399a4411962af175c04407dbc07"
 
 _REPOSITORY_ROOT = str(Path(__file__).resolve().parents[1])
 
@@ -83,8 +83,15 @@ def _complete_checkpoint(site_base: Path, slug: str) -> None:
     )
 
 
-def test_no_declared_servers_match_reference_script():
-    """An unconfigured site resolves to one server and a stable script."""
+def test_no_declared_servers_match_reference_script(monkeypatch):
+    """An unconfigured site resolves to one server and a stable script.
+
+    The digest pins the script's shape rather than one host's state directory,
+    so the registry path is rendered from the home-relative default: with an
+    ``XDG_STATE_HOME`` override in force it would embed that override and the
+    reference would stop being comparable across machines.
+    """
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     profile = load_profile("deepseek-v4-1-flash")
     script = generate_serve_script(profile, _BASE_SITE, port=profile.slurm.port)
     normalised = script.replace(_REPOSITORY_ROOT, "<repo>").replace(
@@ -436,7 +443,7 @@ def test_restart_keeps_a_serve_on_the_server_it_runs_on(tmp_path, monkeypatch):
             "B300",
             server=_B300.name,
         ),
-        registration_directory(site_base),
+        registration_directory(),
     )
     _complete_checkpoint(site_base, "deepseek-v4-1-flash")
     monkeypatch.setattr(
@@ -494,7 +501,7 @@ def test_a_registration_naming_the_short_host_still_resolves_its_server(
             "B300",
             server="",
         ),
-        registration_directory(site_base),
+        registration_directory(),
     )
     _complete_checkpoint(site_base, "deepseek-v4-1-flash")
     monkeypatch.setattr(
@@ -593,7 +600,7 @@ def test_key_rotation_keeps_a_serve_on_the_server_it_runs_on(tmp_path, monkeypat
             "B300",
             server=_B300.name,
         ),
-        registration_directory(site_base),
+        registration_directory(),
     )
     submitted: list[str] = []
 
@@ -690,6 +697,7 @@ def test_the_default_serve_renders_the_hopper_topology_unchanged(monkeypatch):
     produced before a second accelerator generation was described in it, so a
     Blackwell setting that leaked into the default would show up here.
     """
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     profile = load_profile("deepseek-v4-1-flash")
     script = generate_serve_script(profile, _BASE_SITE, port=profile.slurm.port)
     normalised = script.replace(_REPOSITORY_ROOT, "<repo>").replace(

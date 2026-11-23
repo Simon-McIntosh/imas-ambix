@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import sys
 import tempfile
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -348,9 +349,24 @@ class PublishedOrigin:
         return f"http://{self.host}:{self.port}"
 
 
-def registration_directory(base_dir: str | Path) -> Path:
-    """Return the shared per-serve registry directory for a site base."""
-    return Path(base_dir) / "agents" / "serve-registry"
+def state_home() -> Path:
+    """The operator's state directory: ``XDG_STATE_HOME`` or ``~/.local/state``."""
+    state = os.environ.get("XDG_STATE_HOME")
+    return Path(state) if state else Path.home() / ".local" / "state"
+
+
+def registration_directory() -> Path:
+    """Return the shared per-serve registry directory.
+
+    The registry is operator state, so it lives under the operator's home state
+    directory rather than in the project data tree. A registry kept beside the
+    model store went with that store when it was removed, and the next publish
+    then found nothing to name and wrote an empty endpoint document over one
+    naming a live engine. Resolving it here rather than from a site base keeps
+    one spelling for every writer and reader: the serve script records it, the
+    router publishes from it, and the CLI reads it back.
+    """
+    return state_home() / "ambix" / "serve-registry"
 
 
 def _record_path(directory: Path, job_id: str) -> Path:
@@ -769,6 +785,86 @@ def publish_endpoint_document(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class PublishResult:
+    """What a registry publish did, and why it did nothing when it did not.
+
+    ``path`` is the document written, or ``None`` when an existing document was
+    kept. ``reason`` states why it was kept, so a job log records the decision
+    rather than only its absence.
+    """
+
+    path: Path | None
+    reason: str | None = None
+
+
+def _document_names_releases(path: str | Path) -> bool:
+    """Whether the endpoint document at ``path`` names at least one engine."""
+    try:
+        return bool(read_endpoint_document(path))
+    except (OSError, ValueError):
+        return False
+
+
+def publish_registrations(
+    directory: str | Path,
+    output: str | Path,
+    *,
+    running_jobs: Sequence[str],
+    fetch_catalog: Callable[[str], object],
+    servers: Sequence[SiteServerConfig] = (),
+    routing_origins_for: Callable[
+        [Sequence[PublishedEndpoint]], Sequence[PublishedOrigin]
+    ]
+    | None = None,
+    released_jobs: Sequence[str] = (),
+    keep_unlisted_records: bool = False,
+) -> PublishResult:
+    """Publish the endpoint document from the registry, guarding an empty read.
+
+    A registry that holds no registration while a serve job is running is not
+    evidence that nothing is served. It is what a lost, relocated or
+    not-yet-migrated registry looks like, and a publish taken at that moment
+    replaces a document naming a live engine with an empty one -- the failure
+    that left the router advertising no upstream after the registry tree it
+    lived in was removed. Such a document is therefore kept and the reason
+    reported.
+
+    ``released_jobs`` names allocations whose records this publish is entitled
+    to see empty: a serve's own exit removes its record and then republishes,
+    and that job is still in the scheduler's running set at that moment. Its
+    release is what separates "this lane has just stopped" from "this registry
+    has been lost", and only the caller knows which it is doing.
+    """
+    live = set(running_jobs) - set(released_jobs)
+    # A scheduler query that returns nothing cannot distinguish an idle lane
+    # from a failed listing, so it is never read as "every job is dead": the
+    # records are retained and the origin probe decides. A caller that keeps
+    # every record does the same for a listing that missed one.
+    job_is_running = (
+        (lambda _: True)
+        if keep_unlisted_records or not live
+        else (lambda job_id: job_id in live)
+    )
+    registrations = read_registrations(directory, job_is_running=job_is_running).current
+    if not registrations and live and _document_names_releases(output):
+        return PublishResult(
+            None,
+            (
+                f"registry {directory} holds no registration while serve job(s) "
+                f"{', '.join(sorted(live))} are running; keeping the endpoint "
+                f"document at {output} rather than replacing it with an empty one"
+            ),
+        )
+    endpoints = build_endpoint_document(
+        registrations, fetch_catalog=fetch_catalog, servers=servers
+    )
+    origins = tuple(routing_origins_for(endpoints)) if routing_origins_for else ()
+    return PublishResult(
+        write_endpoint_document(endpoints, output, routing_origins=origins)
+    )
+
+
 def published_router_origin(path: str | Path) -> str | None:
     """The router's address as the endpoint document at ``path`` publishes it.
 
@@ -885,6 +981,10 @@ def _parser() -> argparse.ArgumentParser:
     publish = subparsers.add_parser("publish")
     publish.add_argument("--directory")
     publish.add_argument("--output")
+    # The allocation whose record this publish is entitled to find absent. A
+    # serve removes its own record and then republishes, and the job is still
+    # listed as running while that happens.
+    publish.add_argument("--released-job-id", action="append", default=[])
     return parser
 
 
@@ -916,7 +1016,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from imas_ambix.agent.profile import SiteConfig
 
         site = SiteConfig.from_env()
-        directory = args.directory or registration_directory(site.base_dir)
+        directory = args.directory or registration_directory()
         output = args.output or site.endpoint_document
         # Ask the scheduler which jobs are alive rather than assuming all of
         # them are. A registration outliving its job is how the published
@@ -925,21 +1025,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         # nothing, which must not be read as "every job is dead" -- that would
         # publish an empty document over a healthy lane, so fall back to
         # retaining the records and let the origin probe decide.
-        live = {job["jobid"] for job in _running_jobs(site)}
-        job_is_running = (lambda job_id: job_id in live) if live else (lambda _: True)
-        registrations = read_registrations(
-            directory, job_is_running=job_is_running
-        ).current
-        endpoints = build_endpoint_document(
-            registrations,
+        jobs = _running_jobs(site)
+        result = publish_registrations(
+            directory,
+            output,
+            running_jobs=[job["jobid"] for job in jobs],
             fetch_catalog=_fetch_anonymous_catalog,
             servers=site.declared_servers,
+            routing_origins_for=lambda endpoints: discover_routing_origins(
+                endpoints, jobs
+            ),
+            released_jobs=args.released_job_id,
         )
-        write_endpoint_document(
-            endpoints,
-            output,
-            routing_origins=discover_routing_origins(endpoints, _running_jobs(site)),
-        )
+        if result.reason is not None:
+            print(f"warning: {result.reason}", file=sys.stderr)
     return 0
 
 
