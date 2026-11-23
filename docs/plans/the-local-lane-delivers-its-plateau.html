@@ -25,7 +25,7 @@
   <title>The Local Lane Delivers Its Plateau | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="40">
+<meta name="plan-version" content="41">
 <meta name="plan-modified" content="2026-11-23">
 </head>
 <body>
@@ -149,7 +149,10 @@
     <div class="r-comment-body"><p>Review of r-20261121T214352054315 at 08b4c98c scored all six dimensions and found no blocking defect; two non-blocking findings on bound_seeds.py — a duplicated nearest-rank percentile and a docstring/CLI argument-order mismatch.</p></div>
 </div>
 <div class="r-comment" data-section="s12" data-id="c-run-r-20261123T023005772676-review-of-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures-6ead289676a9" data-who="reckon-build" data-when="2026-11-23T02:34:43.530Z">
-    <div class="r-comment-body"><p>Reviewed the single commit 6ead2896 (bound_seeds.py +7/-9) gained since the 08b4c98c review: the window percentile now delegates to lane_utilisation.percentile_or_none and the usage line matches main(); the regenerated log&#x27;s data lines are identical to the committed log; two non-blocking findings (no test guards the delegation; the declared negative-control log&#x27;s green arm is muddied by uv help text).</p></div>
+    <div class="r-comment-body"><p>Reviewed the single commit 6ead2896 (bound_seeds.py +7/-9) gained since the 08b4c98c review: the window percentile now delegates to lane_utilisation.percentile_or_none and the usage line matches main(); the regenerated log's data lines are identical to the committed log; two non-blocking findings (no test guards the delegation; the declared negative-control log's green arm is muddied by uv help text).</p></div>
+</div>
+<div class="r-comment" data-section="s12" data-id="c-run-r-20261123T025403636471-review-of-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures-052a20672b84" data-who="reckon-build" data-when="2026-11-23T03:00:30.924Z">
+    <div class="r-comment-body"><p>Independent review of 6ead2896..052a2067 stored: 6 dimensions scored, 2 non-blocking findings (s12.html overstates the spare-body guarantee its source scan can deliver; the provenance guard is exercised only by a hand-run control), added_failure_count 0 against the reviewed run&#x27;s absent suite arms.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261118T114531588284-review-of-llp-the-lane-simulation-reproduces-the-measured-lane-a457a9cbfb9d" data-who="reckon-build" data-when="2026-11-18T12:03:26.219Z">
     <div class="r-comment-body"><p>Independently reviewed llp-the-lane-simulation-reproduces-the-measured-lane at a457a9cb (base 31a74b6) and stored a parsed record scoring goal_fidelity 17, evidence 16, scope_discipline 18, durability 14, fit 16, reuse 4, with six non-blocking findings (receipt-reader duplication, a tautological test assertion, an unreachable branch, a missing plateau assertion in the negative control, and a mismatched gate-log citation); no blocking defect found.</p></div>

@@ -1,0 +1,47 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [],
+  "completed_at": "2026-11-23T03:00:30.924Z",
+  "dispatched_at": "2026-11-23T02:54:58Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/s12.html",
+      "line": 44,
+      "severity": "non-blocking",
+      "text": "The prose states that \"a copy carrying a spare body that nothing calls is refused\", but the source scan at bound_seeds.py:86 detects a local body only by the literal substring \"sorted(\", so a spare body written as list(waits).sort() is not refused; the claim is broader than the mechanism. The material regression (windows cut by a local body) is still caught by the co_names clause at bound_seeds.py:74 whatever the body text, and an uncalled spare body is harmless, so this does not hold the node."
+    },
+    {
+      "file": "docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py",
+      "line": 204,
+      "severity": "non-blocking",
+      "text": "The provenance guard is exercised only by the hand-run four-arm control; git grep finds no reference to bound_seeds in tests/ or imas_ambix/ and no CI job runs it, so removing the _estimator_problem call or weakening a clause leaves the check green and nothing reddens -- the guard on the guard remains a manual control."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "none -- bound_seeds.py is a standalone evidence script under docs/ that no production module imports, and no production caller reaches it",
+    "diff": "Read against 6ead2896; one commit, two files, +55/-2: _estimator_problem and its call in check at bound_seeds.py:61-90 and 204-206, a docstring extension, and the provenance paragraph at s12.html:38-46.",
+    "done_when": "The done-when asks for a passing check that every s5 figure is the cited log's; the manifest records it at EXIT=0 and I re-ran bound_seeds.py check at head, reproducing 'the fragment's figures are the log's' at EXIT=0.",
+    "goal": "The plan's s12 goal is that every section 5 figure reads from a committed log and s12 states which of 16.0 s and 35.25 s the landed revision measures; the gained commit holds the estimator reuse to a provenance check and states it at s12.html:38-46.",
+    "manifest": "Read; it records commit 052a2067, the literal gate command, reuse-negative-control.log as the four-arm negative control, and no baseline_suite or after_suite arms because the node ran no pytest suite.",
+    "write_paths": "The manifest declares six paths; the gained commit touches exactly bound_seeds.py and s12.html, both inside the declared set."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the plan's s12 goal is that every section 5 figure reads from a committed log and s12 states which of 16.0 s and 35.25 s the landed revision measures; the gained commit holds the estimator reuse to a provenance check and states it at docs/evidence/fragments/the-local-lane-delivers-its-plateau/s12.html:38-46.\nVERDICT done_when: the done-when asks for a passing check that every s5 figure is the cited log's; the manifest records that check at EXIT=0, and I re-ran it independently at head (docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py:202-264) and reproduced \"the fragment's figures are the log's\" at EXIT=0.\nVERDICT write_paths: the manifest declares six paths; the gained commit 6ead2896..052a2067 touches exactly bound_seeds.py and s12.html, both inside the declared set.\nVERDICT manifest: read; it records commit 052a2067, the literal gate command, reuse-negative-control.log as the four-arm negative control, and no baseline_suite or after_suite arms because the node ran no pytest suite.\nVERDICT diff: read against 6ead2896; one commit, two files, +55/-2 -- it adds _estimator_problem and its call in check at bound_seeds.py:61-90 and 204-206, extends the module docstring, and adds the provenance paragraph to s12.html:38-46.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: bound_seeds.py:61-90 asserts the window percentile resolves to imas_ambix/agent/lane_utilisation.py:489 percentile_or_none and that _window_p90s calls it, which is the reuse the increment exists to keep, and s12.html:38-46 states it.\nSCORE evidence: 18\nJUSTIFICATION evidence: check-green.log ends EXIT=0, reuse-negative-control.log records arms at EXIT=1/1/1/0 with each command, and my independent run of docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py reproduced both the green pass and the two provenance refusals.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the gained commit touches only docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py and s12.html, both inside the declared write paths, with nothing the goal does not imply.\nSCORE durability: 13\nJUSTIFICATION durability: the guard at bound_seeds.py:69-89 reddens on a restored local body (I reproduced \"the window figure does not call percentile_or_none\" at EXIT=1) and on a spare sorted( body, but no test or CI job runs bound_seeds.py, so deleting the call at bound_seeds.py:204 leaves everything green.\nSCORE fit: 16\nJUSTIFICATION fit: _estimator_problem follows the file's idiom and its mechanism-named symbols at bound_seeds.py:61-90 introduce no forbidden name, though its source-text scan at bound_seeds.py:79-89 is a text heuristic inside an otherwise value-based check.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change imports the owner imas_ambix/agent/lane_utilisation.py:489 and asserts provenance rather than re-implementing the estimator; no prior provenance-guard mechanism exists in imas_ambix/ or tests/.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/s12.html:44 non-blocking: the prose states that \"a copy carrying a spare body that nothing calls is refused\", but the source scan at bound_seeds.py:86 detects a local body only by the literal substring \"sorted(\", so a spare body written as list(waits).sort() is not refused; the claim is broader than the mechanism. The material regression (windows cut by a local body) is still caught by the co_names clause at bound_seeds.py:74 whatever the body text, and an uncalled spare body is harmless, so this does not hold the node.\nFINDING docs/evidence/fragments/the-local-lane-delivers-its-plateau/bound_seeds.py:204 non-blocking: the provenance guard is exercised only by the hand-run four-arm control; git grep finds no reference to bound_seeds in tests/ or imas_ambix/ and no CI job runs it, so removing the _estimator_problem call or weakening a clause leaves the check green and nothing reddens -- the guard on the guard remains a manual control.",
+  "review_run_id": "r-20261123T025403636471-review-of-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures-052a20672b84",
+  "reviewed_base_sha": "6ead289676a9b2fe3c045081966d7f248e2a0dbf",
+  "reviewed_head_sha": "052a20672b84b5d466269aa2269f5184d822aee7",
+  "reviewed_run_id": "r-20261121T214352054315-llp-the-wait-bounds-evidence-cites-logs-that-hold-its-figures",
+  "scores": {
+    "durability": 13,
+    "evidence": 18,
+    "fit": 16,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-11-23T03:02:03.370293+00:00",
+  "total": 106
+}
