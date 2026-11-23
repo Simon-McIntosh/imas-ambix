@@ -8,8 +8,12 @@ run in both arms, writing one log the fragment cites for every figure it states.
 figure the fragment states is the log's, and unless every log the fragment
 cites is a file in the repository.
 
+Each five-minute window's figure is cut with ``percentile_or_none``, the one
+nearest-rank estimator the lane's own figures use, so the log agrees with what
+the gate publishes for the same record.
+
 usage: bound_seeds.py run <log>      (on a compute partition)
-       bound_seeds.py check <fragment> <log>
+       bound_seeds.py check <log> <fragment>
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ import sys
 from pathlib import Path
 
 from imas_ambix.agent.lane_sim import LaneSim, calibrate_rows, read_receipts
+from imas_ambix.agent.lane_utilisation import percentile_or_none
 from imas_ambix.agent.router import DEFAULT_WAIT_BOUND_SECONDS
 
 HERE = Path(__file__).resolve().parent
@@ -39,19 +44,12 @@ THINK_DROP_S = 7200.0
 THINK_DROP_SEED = 0
 
 
-def _rank_p90(waits: list[float]) -> float | None:
-    ordered = sorted(waits)
-    if not ordered:
-        return None
-    return ordered[int(0.9 * (len(ordered) - 1))]
-
-
 def _window_p90s(sim: LaneSim) -> list[tuple[float, float | None]]:
     windows = []
     lo = WARM_UP_S
     while lo + WINDOW_S <= sim.end:
         waits = [wait for at, wait in sim.wait_events if lo <= at < lo + WINDOW_S]
-        windows.append((lo, _rank_p90(waits)))
+        windows.append((lo, percentile_or_none(waits, 0.9)))
         lo += WINDOW_S
     return windows
 
