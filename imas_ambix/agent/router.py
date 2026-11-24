@@ -3185,19 +3185,14 @@ class RouterApp:
                 upstreams = await self._resolver.resolve()
                 if not upstreams:
                     raise RuntimeError("no upstream is registered")
-            # EOFError and zlib.error are the decode failures a truncated gzip or
-            # corrupt deflate metrics body raises in fetch_engine_metrics; they
-            # are caught beside the transport and parse failures so a corrupt
-            # body publishes the unavailable state and the publisher loop
-            # survives.
-            except (
-                aiohttp.ClientError,
-                OSError,
-                RuntimeError,
-                ValueError,
-                EOFError,
-                zlib.error,
-            ) as error:
+            # Any failure to resolve the upstreams publishes the unavailable
+            # state and the loop goes on. Resolution reaches the scheduler, and
+            # a scheduler error arrives as an exception type no list of
+            # transport and parse failures names, which ended this task
+            # silently while the router kept serving and the lane document
+            # went stale. Cancellation is not an Exception, so shutdown still
+            # stops the loop.
+            except Exception as error:  # noqa: BLE001 - the publisher must outlive any one read
                 logger.warning(
                     "lane publisher unavailable error=%s: %s",
                     type(error).__name__,
@@ -3221,14 +3216,7 @@ class RouterApp:
                         capacity = await asyncio.to_thread(
                             fetch_lane_capacity, upstream.base_url
                         )
-                    except (
-                        aiohttp.ClientError,
-                        OSError,
-                        RuntimeError,
-                        ValueError,
-                        EOFError,
-                        zlib.error,
-                    ) as error:
+                    except Exception as error:  # noqa: BLE001 - one engine cannot end the publisher
                         logger.warning(
                             "lane publisher unavailable target=%s error=%s: %s",
                             f"{upstream.base_url.rstrip('/')}/metrics",
